@@ -1,0 +1,88 @@
+#ifndef INSIGHT_RANGE_H
+# define INSIGHT_RANGE_H
+
+# include <iterator>
+# include <unordered_map>
+# include <memory>
+
+namespace Insight {
+
+    template<typename T>
+    using RangeCollection = std::unordered_map<std::string, std::unique_ptr<T>>;
+
+    template<typename T>
+    class RangeIterator : public std::iterator<std::forward_iterator_tag, const T> {
+    using Iterator = typename RangeCollection<T>::const_iterator;
+    public:
+        RangeIterator(Iterator it);
+        RangeIterator(const RangeIterator& other);
+
+        const T& operator*() const;
+        bool operator==(const RangeIterator &other) const;
+        bool operator!=(const RangeIterator &other) const;
+        RangeIterator& operator=(const RangeIterator& cu);
+        RangeIterator& operator++();
+    private:
+        Iterator wrapped;
+    };
+
+    template<typename T>
+    class Range {
+    public:
+        Range(const RangeCollection<T>& collection) : c(collection) {};
+        RangeIterator<T> cbegin() const {
+            return RangeIterator<T>(c.cbegin());
+        }
+        RangeIterator<T> cend() const {
+            return RangeIterator<T>(c.cend());
+        }
+        RangeIterator<T> begin() const {
+            return RangeIterator<T>(c.cbegin());
+        }
+        RangeIterator<T> end() const {
+            return RangeIterator<T>(c.cend());
+        }
+    private:
+        const RangeCollection<T>& c;
+    };
+
+    template<typename T>
+    RangeIterator<T>::RangeIterator(Iterator it)
+        : wrapped(it)
+    {}
+
+    template<typename T>
+    RangeIterator<T>::RangeIterator(const RangeIterator& other)
+        : wrapped(other.wrapped)
+    {}
+
+    template<typename T>
+    const T& RangeIterator<T>::operator*() const {
+        return *wrapped->second;
+    }
+
+    template<typename T>
+    bool RangeIterator<T>::operator==(const RangeIterator<T> &other) const {
+        return wrapped == other.wrapped;
+    }
+
+    template<typename T>
+    bool RangeIterator<T>::operator!=(const RangeIterator<T> &other) const {
+        return wrapped != other.wrapped;
+    }
+
+    template<typename T>
+    RangeIterator<T>& RangeIterator<T>::operator=(const RangeIterator<T> &other) {
+        wrapped = other.wrapped;
+        return *this;
+    }
+
+    template<typename T>
+    RangeIterator<T>& RangeIterator<T>::operator++() {
+        wrapped++;
+        return *this;
+    }
+
+}
+
+#endif /* !INSIGHT_RANGE_H */
