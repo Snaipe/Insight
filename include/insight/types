@@ -1,7 +1,6 @@
 #ifndef INSIGHT_TYPES_HH
 # define INSIGHT_TYPES_HH
 
-# include <vector>
 # include <string>
 # include "range"
 
