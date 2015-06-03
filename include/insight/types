@@ -1,0 +1,57 @@
+#ifndef INSIGHT_TYPES_HH
+# define INSIGHT_TYPES_HH
+
+# include <vector>
+# include <string>
+# include "range"
+
+namespace Insight {
+
+    class Named {
+    public:
+        virtual const std::string& name() const = 0;
+    };
+
+    class TypeInfo : public Named {
+    };
+
+    class MemberInfo : public Named {
+    };
+
+    class FieldInfo : public MemberInfo {
+    public:
+        virtual const TypeInfo& type() const = 0;
+        virtual const size_t offset() const = 0;
+
+        template<typename T, typename V>
+        void set(T& instance, V value) const {
+            V* target = reinterpret_cast<V*>(reinterpret_cast<char*>(&instance) + offset());
+            *target = value;
+        }
+    };
+
+    class MethodInfo : public MemberInfo {
+    public:
+        virtual const TypeInfo& return_type() const = 0;
+        virtual const Range<TypeInfo> parameter_types() const = 0;
+        virtual const void* address() const = 0;
+
+        template<typename R, typename T, typename ...Args>
+        R call(T& instance, Args... args) const {
+            using FuncType = R (*)(T*, Args...);
+            FuncType func = reinterpret_cast<FuncType>(address());
+            return func(&instance, args...);
+        }
+    };
+
+    class StructInfo : public TypeInfo {
+    public:
+        virtual const Range<MethodInfo> methods() const = 0;
+        virtual const MethodInfo& method(std::string name) const = 0;
+        virtual const Range<FieldInfo> fields() const = 0;
+        virtual const FieldInfo& field(std::string name) const = 0;
+    };
+
+}
+
+#endif /* !INSIGHT_TYPES_HH */
