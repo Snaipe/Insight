@@ -4,17 +4,15 @@
 # include <memory>
 # include "types"
 
-# include "mangle.h"
-
 namespace Insight {
 
     const TypeInfo& type_of(std::string name);
+    const TypeInfo& type_of(const std::type_info& info);
     void initialize();
 
     template<typename T>
     const TypeInfo& type_of() {
-        std::string name = demangle(std::string(typeid(T).name()));
-        return type_of(name);
+        return type_of(typeid(T));
     }
 
 };

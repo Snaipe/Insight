@@ -1,11 +1,11 @@
 #include <vector>
 #include <unordered_map>
-#include <iostream>
 #include <libdwarf++/dwarf.hh>
 #include <libdwarf++/die.hh>
 #include <libdwarf++/cu.hh>
 #include "insight/insight"
 #include "internal.hh"
+#include "mangle.hh"
 
 namespace Insight {
 
@@ -34,6 +34,10 @@ namespace Insight {
 
     const TypeInfo& type_of(std::string name) {
         return *type_registry.at(name);
+    }
+
+    const TypeInfo& type_of(const std::type_info& info) {
+        return type_of(demangle(std::string(info.name())));
     }
 
     static size_t get_offset(Dwarf::Die &die) {

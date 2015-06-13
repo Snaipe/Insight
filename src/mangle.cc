@@ -1,4 +1,4 @@
-#include "mangle.h"
+#include "mangle.hh"
 
 #ifdef __GNUG__
 #include <cxxabi.h>

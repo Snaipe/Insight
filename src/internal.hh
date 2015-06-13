@@ -9,9 +9,6 @@ extern Dwarf::Debug &dbg;
 
 namespace Insight {
 
-    extern std::unordered_map<std::string, std::unique_ptr<StructInfo>> classes_by_absolute_name;
-    //extern NamespaceInfo root_namespace;
-
     template <class T>
     class NameBase : public T {
     public:
