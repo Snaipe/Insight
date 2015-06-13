@@ -4,8 +4,9 @@ namespace Insight {
 
     // MethodInfo
 
-    MethodInfoImpl::MethodInfoImpl(char const *name)
-            : NameBase<MethodInfo>(std::string(name))
+    MethodInfoImpl::MethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type)
+        : NameBase<MethodInfo>(std::string(name))
+        , return_type_(return_type)
     {}
 
     const void *MethodInfoImpl::address() const {
@@ -42,8 +43,8 @@ namespace Insight {
 
     // StructInfo
 
-    StructInfoImpl::StructInfoImpl(const char *name, size_t size)
-        : TypeBase(std::string(name), size)
+    StructInfoImpl::StructInfoImpl(std::string& name, size_t size)
+        : TypeBase(name, size)
         , fields_()
         , methods_()
     {}
@@ -98,6 +99,16 @@ namespace Insight {
     {}
 
     TypeInfo &ConstTypeInfoImpl::type() const {
+        return *type_.lock();
+    }
+
+
+    TypeDefInfoImpl::TypeDefInfoImpl(const char* name, std::shared_ptr<TypeInfo>& type)
+            : TypeBase(name, type->size_of())
+            , type_(type)
+    {}
+
+    TypeInfo &TypeDefInfoImpl::aliased_type() const {
         return *type_.lock();
     }
 

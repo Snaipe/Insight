@@ -49,7 +49,7 @@ namespace Insight {
 
     class MethodInfoImpl : public NameBase<MethodInfo> {
     public:
-        MethodInfoImpl(const char *name);
+        MethodInfoImpl(const char *name, std::weak_ptr<TypeInfo> return_type);
         virtual const void* address() const override;
         virtual const bool is_virtual() const override;
         virtual const TypeInfo& return_type() const override;
@@ -63,7 +63,7 @@ namespace Insight {
 
     class StructInfoImpl : public TypeBase<StructInfo> {
     public:
-        StructInfoImpl(const char *name, size_t size);
+        StructInfoImpl(std::string& name, size_t size);
         virtual const Range<MethodInfo> methods() const override;
         virtual const Range<FieldInfo> fields() const override;
         virtual const MethodInfo& method(std::string name) const override;
@@ -95,6 +95,14 @@ namespace Insight {
     public:
         ConstTypeInfoImpl(std::shared_ptr<TypeInfo>& type);
         virtual TypeInfo& type() const override;
+    private:
+        std::weak_ptr<TypeInfo> type_;
+    };
+
+    class TypeDefInfoImpl : public TypeBase<TypeDefInfo> {
+    public:
+        TypeDefInfoImpl(const char* name, std::shared_ptr<TypeInfo>& type);
+        virtual TypeInfo& aliased_type() const override;
     private:
         std::weak_ptr<TypeInfo> type_;
     };

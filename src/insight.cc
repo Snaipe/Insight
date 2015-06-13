@@ -12,16 +12,21 @@ namespace Insight {
     template<typename T>
     using OffsetMap = std::unordered_map<size_t, T>;
 
+    using TypeOffsetMap = OffsetMap<std::shared_ptr<TypeInfo>>;
+    using MethodOffsetMap = OffsetMap<MethodInfoImpl*>;
+
     struct BuildContext {
-        BuildContext(const Dwarf::Debug& d)
+        BuildContext(const Dwarf::Debug& d, TypeOffsetMap& tom, MethodOffsetMap& mom, int& ac)
             : dbg(d)
-            , types()
-            , methods()
+            , types(tom)
+            , methods(mom)
+            , anonymous_count(ac)
         {}
 
         const Dwarf::Debug& dbg;
-        OffsetMap<std::shared_ptr<TypeInfo>> types;
-        OffsetMap<MethodInfoImpl*> methods;
+        TypeOffsetMap& types;
+        MethodOffsetMap& methods;
+        int& anonymous_count;
         void* target;
     };
 
@@ -65,56 +70,70 @@ namespace Insight {
                 {"complex long double",     PrimitiveKind::LONG_DOUBLE_COMPLEX},
         };
 
-        const Dwarf::Tag &tag = die.get_tag();
         std::shared_ptr<TypeInfo> type;
-        std::string name;
-        switch (tag.get_id()) {
-            case DW_TAG_base_type: {
-                name = die.get_name();
-                PrimitiveKind kind = primitiveKinds[name];
-                std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
-                if (!attrsize) // ignore types with no size
-                    break;
+        auto t = type_registry.find(die.get_name() ?: "");
+        if (t != type_registry.end())
+            type = t->second;
+        else {
+            const Dwarf::Tag &tag = die.get_tag();
+            switch (tag.get_id()) {
+                case DW_TAG_base_type: {
+                    PrimitiveKind kind = primitiveKinds[die.get_name()];
+                    std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
+                    if (!attrsize) // ignore types with no size
+                        break;
 
-                size_t size = attrsize->as<Dwarf::Off>();
-                type = std::make_shared<PrimitiveTypeInfoImpl>(die.get_name(), size, kind);
-            } break;
-            case DW_TAG_structure_type:
-            case DW_TAG_class_type: {
-                if (!die.get_name()) // ignore anonymous structures
+                    size_t size = attrsize->as<Dwarf::Off>();
+                    type = std::make_shared<PrimitiveTypeInfoImpl>(die.get_name(), size, kind);
+                }
                     break;
+                case DW_TAG_structure_type:
+                case DW_TAG_class_type: {
+                    type = build_struct_type(die, ctx);
+                }
+                    break;
+                case DW_TAG_pointer_type: {
+                    std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
+                    std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
+                    if (!attrtype || !attrsize)
+                        break;
+                    std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
+                    if (!subtype)
+                        break;
 
-                type = build_struct_type(die, ctx);
-            } break;
-            case DW_TAG_pointer_type: {
-                std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
-                std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
-                if (!attrtype || !attrsize)
+                    type = std::make_shared<PointerTypeInfoImpl>(subtype, attrsize->as<Dwarf::Unsigned>());
+                }
                     break;
-                std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
-                if (!subtype)
-                    break;
+                case DW_TAG_const_type: {
+                    std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
+                    if (!attrtype)
+                        break;
+                    std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
+                    if (!subtype)
+                        break;
 
-                type = std::make_shared<PointerTypeInfoImpl>(subtype, attrsize->as<Dwarf::Unsigned>());
-            } break;
-            case DW_TAG_const_type: {
-                std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
-                if (!attrtype)
+                    type = std::make_shared<ConstTypeInfoImpl>(subtype);
+                }
                     break;
-                std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
-                if (!subtype)
-                    break;
+                case DW_TAG_typedef: {
+                    std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
+                    if (!attrtype)
+                        break;
+                    std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
+                    if (!subtype)
+                        break;
 
-                type = std::make_shared<ConstTypeInfoImpl>(subtype);
-            } break;
-            default: break;
+                    type = std::make_shared<TypeDefInfoImpl>(die.get_name(), subtype);
+                }
+                    break;
+                default:
+                    break;
+            }
+            if (type)
+                type_registry[type->name()] = type;
         }
-        if (type) {
-            std::cout << type->name() << std::endl;
-
-            type_registry[type->name()] = type;
+        if (type)
             ctx.types[die.get_offset()] = type;
-        }
         return type;
     }
 
@@ -147,13 +166,18 @@ namespace Insight {
                 if (!die.get_name()) // ignore unnamed methods
                     break;
 
-                std::unique_ptr<MethodInfo> method = std::make_unique<MethodInfoImpl>(die.get_name());
+                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
+                if (!attr)
+                    break;
+
+                std::weak_ptr<TypeInfo> return_type(get_type(*ctx, attr->as<Dwarf::Off>()));
+                std::unique_ptr<MethodInfo> method = std::make_unique<MethodInfoImpl>(die.get_name(), return_type);
                 Dwarf::Off off = die.get_offset();
                 ctx->methods[off] = static_cast<MethodInfoImpl*>(&*method);
 
                 structinfo->add_method(method);
             } break;
-            default: return Dwarf::Die::TraversalResult::TRAVERSE;
+            default: break;
         }
         return Dwarf::Die::TraversalResult::SKIP;
     }
@@ -162,16 +186,17 @@ namespace Insight {
         std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
         size_t size = !attrsize ? 0 : attrsize->as<Dwarf::Off>();
 
-        std::shared_ptr<StructInfo> structinfo = std::make_shared<StructInfoImpl>(die.get_name(), size);
+        std::string name = die.get_name() ?: ("anonymous#" + std::to_string(ctx.anonymous_count++));
+        std::shared_ptr<StructInfo> structinfo = std::make_shared<StructInfoImpl>(name, size);
 
         BuildContext newctx = ctx;
         newctx.target = &*structinfo;
 
-        die.traverse(handle_member, &newctx);
+        die.traverse_headless(handle_member, &newctx);
         return structinfo;
     }
 
-    static Dwarf::Die::TraversalResult build_types(Dwarf::Die &die, void *data) {
+    static Dwarf::Die::TraversalResult build_metadata(Dwarf::Die &die, void *data) {
         const Dwarf::Tag &tag = die.get_tag();
         BuildContext& ctx = *static_cast<BuildContext*>(data);
 
@@ -181,24 +206,13 @@ namespace Insight {
             case DW_TAG_class_type:
             case DW_TAG_structure_type:
             case DW_TAG_pointer_type:
+            case DW_TAG_typedef:
                 build_type(die, ctx);
                 break;
-            default: break;
-        }
-        return Dwarf::Die::TraversalResult::SKIP;
-    }
-
-    static Dwarf::Die::TraversalResult build_post_metadata(Dwarf::Die &die, void *data) {
-        const Dwarf::Tag &tag = die.get_tag();
-        BuildContext& ctx = *static_cast<BuildContext*>(data);
-
-        switch (tag.get_id()) {
-            case DW_TAG_compile_unit: return Dwarf::Die::TraversalResult::TRAVERSE;
             case DW_TAG_subprogram: {
                 std::unique_ptr<const Dwarf::Attribute> attrspec = die.get_attribute(DW_AT_specification);
                 if (!attrspec) {
                     // TODO: handle functions
-                    return Dwarf::Die::TraversalResult::SKIP;
                 } else {
                     Dwarf::Off off = attrspec->as<Dwarf::Off>();
                     auto it = ctx.methods.find(off);
@@ -213,7 +227,6 @@ namespace Insight {
                     }
                 }
             } break;
-            case DW_TAG_pointer_type: break;
             default: break;
         }
         return Dwarf::Die::TraversalResult::SKIP;
@@ -223,14 +236,13 @@ namespace Insight {
 
         std::shared_ptr<const Dwarf::Debug> dbg = Dwarf::Debug::self();
 
-        BuildContext ctx(*dbg);
+        int anonymous_count = 0;
+        TypeOffsetMap types;
+        MethodOffsetMap methods;
+        BuildContext ctx(*dbg, types, methods, anonymous_count);
 
         for (const Dwarf::CompilationUnit &cu : *dbg) {
-            cu.get_die()->traverse_headless(Insight::build_types, &ctx);
-        }
-
-        for (const Dwarf::CompilationUnit &cu : *dbg) {
-            cu.get_die()->traverse(Insight::build_post_metadata, &ctx);
+            cu.get_die()->traverse_headless(Insight::build_metadata, &ctx);
         }
 
     }
