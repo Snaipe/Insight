@@ -2,18 +2,35 @@
 
 namespace Insight {
 
-    const std::string& MethodInfoImpl::name() const {
-        return name_;
-    }
+    // MethodInfo
 
-    MethodInfoImpl::MethodInfoImpl(char const *name, void* address)
-        : name_(name)
-        , address_(address)
+    MethodInfoImpl::MethodInfoImpl(char const *name)
+            : NameBase<MethodInfo>(std::string(name))
     {}
 
-    const std::string& FieldInfoImpl::name() const {
-        return name_;
+    const void *MethodInfoImpl::address() const {
+        return address_;
     }
+
+    const bool MethodInfoImpl::is_virtual() const {
+        return virtual_;
+    }
+
+    const TypeInfo &MethodInfoImpl::return_type() const {
+        return *return_type_.lock();
+    }
+
+    const Range<TypeInfo> MethodInfoImpl::parameter_types() const {
+        return Range<TypeInfo>(parameters_);
+    }
+
+    // FieldInfo
+
+    FieldInfoImpl::FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type)
+            : NameBase<FieldInfo>(std::string(name))
+            , offset_(offset)
+            , type_(type)
+    {}
 
     const TypeInfo& FieldInfoImpl::type() const {
         return *type_.lock();
@@ -23,21 +40,13 @@ namespace Insight {
         return offset_;
     }
 
-    FieldInfoImpl::FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type)
-        : name_(name)
-        , offset_(offset)
-        , type_(type)
-    {}
+    // StructInfo
 
-    StructInfoImpl::StructInfoImpl(const char *name)
-        : name_(name)
+    StructInfoImpl::StructInfoImpl(const char *name, size_t size)
+        : TypeBase(std::string(name), size)
         , fields_()
         , methods_()
     {}
-
-    const std::string& StructInfoImpl::name() const {
-        return name_;
-    }
 
     Range<MethodInfo> const StructInfoImpl::methods() const {
         return Range<MethodInfo>(methods_);
@@ -63,7 +72,33 @@ namespace Insight {
         return *fields_.at(name);
     }
 
-    const void *MethodInfoImpl::address() const {
-        return address_;
+    // PrimitiveTypeInfo
+
+    PrimitiveTypeInfoImpl::PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind)
+        : TypeBase(std::string(name), size)
+        , kind_(kind)
+    {}
+
+    PrimitiveKind PrimitiveTypeInfoImpl::kind() const {
+        return kind_;
     }
+
+    PointerTypeInfoImpl::PointerTypeInfoImpl(std::shared_ptr<TypeInfo> type, size_t size)
+            : TypeBase(type->name() + "*", size)
+            , type_(type)
+    {}
+
+    TypeInfo &PointerTypeInfoImpl::pointed_type() const {
+        return *type_.lock();
+    }
+
+    ConstTypeInfoImpl::ConstTypeInfoImpl(std::shared_ptr<TypeInfo>& type)
+            : TypeBase(type->name() + " const", type->size_of())
+            , type_(type)
+    {}
+
+    TypeInfo &ConstTypeInfoImpl::type() const {
+        return *type_.lock();
+    }
+
 }

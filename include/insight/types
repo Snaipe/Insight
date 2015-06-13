@@ -12,6 +12,46 @@ namespace Insight {
     };
 
     class TypeInfo : public Named {
+    public:
+        virtual size_t size_of() const = 0;
+    };
+
+    enum PrimitiveKind {
+        UNKNOWN = 0,
+
+        BOOL,
+        CHAR,
+        INT,
+        FLOAT,
+        DOUBLE,
+
+        UNSIGNED                = 1 << 8,
+        SHORT                   = 1 << 9,
+        LONG                    = 1 << 10,
+        LONG_LONG               = 1 << 11,
+        COMPLEX                 = 1 << 12,
+
+        SHORT_INT               = SHORT | INT,
+        LONG_INT                = LONG | INT,
+        LONG_LONG_INT           = LONG_LONG | INT,
+
+        UNSIGNED_CHAR           = UNSIGNED | CHAR,
+        UNSIGNED_SHORT_INT      = UNSIGNED | SHORT_INT,
+        UNSIGNED_INT            = UNSIGNED | INT,
+        UNSIGNED_LONG_INT       = UNSIGNED | LONG_INT,
+        UNSIGNED_LONG_LONG_INT  = UNSIGNED | LONG_LONG_INT,
+
+        LONG_DOUBLE             = LONG | DOUBLE,
+
+        FLOAT_COMPLEX           = COMPLEX | FLOAT,
+        DOUBLE_COMPLEX          = COMPLEX | DOUBLE,
+        LONG_DOUBLE_COMPLEX     = COMPLEX | LONG_DOUBLE,
+
+    };
+
+    class PrimitiveTypeInfo : public TypeInfo {
+    public:
+        virtual PrimitiveKind kind() const = 0;
     };
 
     class MemberInfo : public Named {
@@ -29,16 +69,24 @@ namespace Insight {
         }
     };
 
+    class NoSuchFieldException : public std::exception {
+
+    };
+
     class MethodInfo : public MemberInfo {
     public:
         virtual const TypeInfo& return_type() const = 0;
         virtual const Range<TypeInfo> parameter_types() const = 0;
         virtual const void* address() const = 0;
+        virtual const bool is_virtual() const = 0;
 
         template<typename R, typename T, typename ...Args>
         R call(T& instance, Args... args) const {
             using FuncType = R (*)(T*, Args...);
-            FuncType func = reinterpret_cast<FuncType>(address());
+            const void* addr = address();
+            if (!addr)
+                throw std::runtime_error("No address for function " + name());
+            FuncType func = reinterpret_cast<FuncType>(addr);
             return func(&instance, args...);
         }
     };
@@ -49,6 +97,16 @@ namespace Insight {
         virtual const MethodInfo& method(std::string name) const = 0;
         virtual const Range<FieldInfo> fields() const = 0;
         virtual const FieldInfo& field(std::string name) const = 0;
+    };
+
+    class PointerTypeInfo : public TypeInfo {
+    public:
+        virtual TypeInfo& pointed_type() const = 0;
+    };
+
+    class ConstTypeInfo : public TypeInfo {
+    public:
+        virtual TypeInfo& type() const = 0;
     };
 
 }

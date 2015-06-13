@@ -1,0 +1,22 @@
+#ifndef INSIGHT_INSIGHT_HH
+# define INSIGHT_INSIGHT_HH
+
+# include <memory>
+# include "types"
+
+# include "mangle.h"
+
+namespace Insight {
+
+    const TypeInfo& type_of(std::string name);
+    void initialize();
+
+    template<typename T>
+    const TypeInfo& type_of() {
+        std::string name = demangle(std::string(typeid(T).name()));
+        return type_of(name);
+    }
+
+};
+
+#endif /* !INSIGHT_INSIGHT_HH */
