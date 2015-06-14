@@ -27,3 +27,9 @@ add_library(insight ${SOURCE_FILES} ${INTERFACE_FILES})
 
 link_directories(/usr/lib)
 target_link_libraries(insight elf dwarf dwarf++)
+
+install(FILES ${INTERFACE_FILES} DESTINATION include)
+install(TARGETS insight
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
