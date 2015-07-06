@@ -39,6 +39,8 @@ namespace Insight {
     typedef std::unordered_map<size_t, std::shared_ptr<TypeInfo>> tom_t;
     typedef std::unordered_map<size_t, MethodInfoImpl*> mom_t;
 
+    std::shared_ptr<TypeInfo> VOID_TYPE = std::make_shared<PrimitiveTypeInfoImpl>("void", 0, PrimitiveKind::VOID);
+
     struct BuildContext {
         BuildContext(const Dwarf::Debug& d)
             : dbg(d)
@@ -133,13 +135,17 @@ namespace Insight {
 
                     std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
                     std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
-                    if (!attrtype || !attrsize)
+                    if (!attrsize)
                         break;
-                    std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
-                    if (!subtype)
-                        break;
+                    if (!attrtype) {
+                        t->set_type(VOID_TYPE);
+                    } else {
+                        std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
+                        if (!subtype)
+                            break;
 
-                    t->set_type(subtype);
+                        t->set_type(subtype);
+                    }
                     t->size_ = attrsize->as<Dwarf::Unsigned>();
                     type = t;
                 } break;
@@ -324,6 +330,7 @@ namespace Insight {
     void initialize() {
 
         std::shared_ptr<const Dwarf::Debug> dbg = Dwarf::Debug::self();
+        type_registry["void"] = VOID_TYPE;
 
         BuildContext ctx(*dbg);
 

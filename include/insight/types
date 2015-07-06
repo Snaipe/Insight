@@ -38,6 +38,7 @@ namespace Insight {
     enum PrimitiveKind {
         UNKNOWN = 0,
 
+        VOID,
         BOOL,
         CHAR,
         INT,
