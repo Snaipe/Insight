@@ -31,24 +31,28 @@ namespace Insight {
     template <class T>
     class NameBase : public T {
     public:
+        NameBase() : name_("") {}
         NameBase(const std::string& name) : name_(name) {}
         NameBase(std::string&& name) : name_(name) {}
         virtual const std::string& name() const override {
             return name_;
         }
-    private:
+
         std::string name_;
     };
 
     template <class T>
     class TypeBase : public NameBase<T> {
     public:
+        TypeBase() : NameBase<T>(), size_(0) {}
+        TypeBase(const std::string &name) : NameBase<T>(name), size_(0) {}
+        TypeBase(std::string&& name) : NameBase<T>(name), size_(0) {}
         TypeBase(const std::string& name, size_t size) : NameBase<T>(name), size_(size) {}
         TypeBase(std::string&& name, size_t size) : NameBase<T>(name), size_(size) {}
         virtual size_t size_of() const override {
             return size_;
         };
-    private:
+
         size_t size_;
     };
 
@@ -58,7 +62,6 @@ namespace Insight {
         virtual const TypeInfo& type() const override;
         virtual const size_t offset() const override;
 
-    private:
         size_t offset_;
         std::weak_ptr<TypeInfo> type_;
     };
@@ -86,7 +89,7 @@ namespace Insight {
         virtual const FieldInfo& field(std::string name) const override;
         void add_field(std::unique_ptr<FieldInfo>& field);
         void add_method(std::unique_ptr<MethodInfo>& method);
-    private:
+
         RangeCollection<MethodInfo> methods_;
         RangeCollection<FieldInfo> fields_;
     };
@@ -95,31 +98,40 @@ namespace Insight {
     public:
         PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind);
         virtual PrimitiveKind kind() const override;
-    private:
+
         PrimitiveKind kind_;
     };
 
     class PointerTypeInfoImpl : public TypeBase<PointerTypeInfo> {
     public:
+        PointerTypeInfoImpl();
         PointerTypeInfoImpl(std::shared_ptr<TypeInfo> type, size_t size);
         virtual TypeInfo& pointed_type() const override;
-    private:
+
+        void set_type(std::shared_ptr<TypeInfo>& type);
+
         std::weak_ptr<TypeInfo> type_;
     };
 
     class ConstTypeInfoImpl : public TypeBase<ConstTypeInfo> {
     public:
+        ConstTypeInfoImpl();
         ConstTypeInfoImpl(std::shared_ptr<TypeInfo>& type);
         virtual TypeInfo& type() const override;
-    private:
+
+        void set_type(std::shared_ptr<TypeInfo>& type);
+
         std::weak_ptr<TypeInfo> type_;
     };
 
     class TypeDefInfoImpl : public TypeBase<TypeDefInfo> {
     public:
+        TypeDefInfoImpl(const char* name);
         TypeDefInfoImpl(const char* name, std::shared_ptr<TypeInfo>& type);
         virtual TypeInfo& aliased_type() const override;
-    private:
+
+        void set_type(std::shared_ptr<TypeInfo>& type);
+
         std::weak_ptr<TypeInfo> type_;
     };
 }

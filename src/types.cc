@@ -47,9 +47,9 @@ namespace Insight {
     // FieldInfo
 
     FieldInfoImpl::FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type)
-            : NameBase<FieldInfo>(std::string(name))
-            , offset_(offset)
-            , type_(type)
+        : NameBase<FieldInfo>(std::string(name))
+        , offset_(offset)
+        , type_(type)
     {}
 
     const TypeInfo& FieldInfoImpl::type() const {
@@ -104,8 +104,13 @@ namespace Insight {
     }
 
     PointerTypeInfoImpl::PointerTypeInfoImpl(std::shared_ptr<TypeInfo> type, size_t size)
-            : TypeBase(type->name() + "*", size)
-            , type_(type)
+        : TypeBase(type->name() + "*", size)
+        , type_(type)
+    {}
+
+    PointerTypeInfoImpl::PointerTypeInfoImpl()
+        : TypeBase()
+        , type_()
     {}
 
     TypeInfo &PointerTypeInfoImpl::pointed_type() const {
@@ -113,22 +118,44 @@ namespace Insight {
     }
 
     ConstTypeInfoImpl::ConstTypeInfoImpl(std::shared_ptr<TypeInfo>& type)
-            : TypeBase(type->name() + " const", type->size_of())
-            , type_(type)
+        : TypeBase(type->name() + " const", type->size_of())
+        , type_(type)
+    {}
+
+    ConstTypeInfoImpl::ConstTypeInfoImpl()
+            : TypeBase()
+            , type_()
     {}
 
     TypeInfo &ConstTypeInfoImpl::type() const {
         return *type_.lock();
     }
 
-
     TypeDefInfoImpl::TypeDefInfoImpl(const char* name, std::shared_ptr<TypeInfo>& type)
-            : TypeBase(name, type->size_of())
-            , type_(type)
+        : TypeBase(name, type->size_of())
+        , type_(type)
     {}
 
     TypeInfo &TypeDefInfoImpl::aliased_type() const {
         return *type_.lock();
     }
 
+    TypeDefInfoImpl::TypeDefInfoImpl(const char *name)
+        : TypeBase(name)
+        , type_()
+    {}
+
+    void PointerTypeInfoImpl::set_type(std::shared_ptr<TypeInfo> &type) {
+        type_ = type;
+        name_ = type->name() + "*";
+    }
+
+    void ConstTypeInfoImpl::set_type(std::shared_ptr<TypeInfo> &type) {
+        type_ = type;
+        name_ = type->name() + " const";
+    }
+
+    void TypeDefInfoImpl::set_type(std::shared_ptr<TypeInfo> &type) {
+        type_ = type;
+    }
 }
