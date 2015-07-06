@@ -36,6 +36,9 @@
 
 void insight_initialize(void);
 insight_type_info insight_type_of_str(const char *);
+
+const char *insight_type_name(insight_type_info type);
+
 insight_field_info insight_field(insight_struct_info info, const char *name);
 void insight_field_set(insight_field_info info, void *instance, void *data, size_t datasize);
 void insight_field_get(insight_field_info info, void *instance, void *data, size_t datasize);
