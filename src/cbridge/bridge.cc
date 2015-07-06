@@ -23,7 +23,21 @@
 
 extern "C" {
 
-#include "insight/types.h"
+namespace Insight {
+    struct FieldInfo;
+    struct MethodInfo;
+    struct MemberInfo;
+    struct StructInfo;
+    struct PrimitiveInfo;
+    struct TypeInfo;
+}
+
+typedef const Insight::FieldInfo *insight_field_info;
+typedef const Insight::MethodInfo *insight_method_info;
+typedef const Insight::MemberInfo *insight_member_info;
+typedef const Insight::StructInfo *insight_struct_info;
+typedef const Insight::PrimitiveTypeInfo *insight_primitive_info;
+typedef const Insight::TypeInfo *insight_type_info;
 
 void insight_initialize(void) {
     Insight::initialize();
@@ -31,32 +45,33 @@ void insight_initialize(void) {
 
 insight_type_info insight_type_of_str(const char *name) {
     try {
-        return reinterpret_cast<insight_type_info>(const_cast<Insight::TypeInfo*>(&Insight::type_of(name)));
+        return &Insight::type_of(name);
     } catch (std::out_of_range &ex) {
         return NULL;
     }
 }
 
+const char *insight_type_name(insight_type_info info) {
+    return info->name().c_str();
+}
+
 insight_field_info insight_field(insight_struct_info info, const char *name) {
-    Insight::StructInfo* sinfo = reinterpret_cast<Insight::StructInfo*>(info);
     try {
-        return reinterpret_cast<insight_field_info>(const_cast<Insight::FieldInfo*>(&sinfo->field(name)));
+        return &info->field(name);
     } catch (std::out_of_range &ex) {
         return NULL;
     }
 }
 
 void insight_field_set(insight_field_info info, void *instance, void *data, size_t datasize) {
-    Insight::FieldInfo* finfo = reinterpret_cast<Insight::FieldInfo*>(info);
-    assert(finfo->type().size_of() == datasize);
-    void* field = static_cast<char*>(instance) + finfo->offset();
+    assert(info->type().size_of() == datasize);
+    void* field = static_cast<char*>(instance) + info->offset();
     std::memcpy(field, data, datasize);
 }
 
 void insight_field_get(insight_field_info info, void *instance, void *data, size_t datasize) {
-    Insight::FieldInfo* finfo = reinterpret_cast<Insight::FieldInfo*>(info);
-    assert(finfo->type().size_of() == datasize);
-    void* field = static_cast<char*>(instance) + finfo->offset();
+    assert(info->type().size_of() == datasize);
+    void* field = static_cast<char*>(instance) + info->offset();
     std::memcpy(data, field, datasize);
 }
 
