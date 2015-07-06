@@ -283,6 +283,25 @@ namespace Insight {
                 std::unique_ptr<const Dwarf::Attribute> attrspec = die.get_attribute(DW_AT_specification);
                 if (!attrspec) {
                     die.traverse_headless(infer_types, &ctx);
+
+                    if (!die.get_name()) // ignore unnamed functions
+                        break;
+
+                    std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
+                    if (!attr)
+                        break;
+
+                    std::weak_ptr<TypeInfo> return_type(get_type(ctx, attr->as<Dwarf::Off>()));
+                    std::unique_ptr<MethodInfo> method = std::make_unique<MethodInfoImpl>(die.get_name(), return_type);
+                    Dwarf::Off off = die.get_offset();
+                    MethodInfoImpl* m = ctx.methods[off] = static_cast<MethodInfoImpl*>(&*method);
+
+                    std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
+                    if (!attraddr)
+                        break;
+                    Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
+
+                    m->address_ = reinterpret_cast<void*>(addr);
                 } else {
                     Dwarf::Off off = attrspec->as<Dwarf::Off>();
                     auto it = ctx.methods.find(off);
