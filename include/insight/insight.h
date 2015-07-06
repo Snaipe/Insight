@@ -23,7 +23,16 @@
 # include <stddef.h>
 # include "types.h"
 
-# define insight_type_of(Type) insight_type_of_str(#Type)
+#if defined(__GNUC__)
+# define type_of(Thing) insight_type_of_(__COUNTER__, Thing)
+# define insight_type_of_(ID, Thing) insight_type_of__(ID, Thing)
+# define insight_type_of__(ID, Thing) ({                                                         \
+        static __typeof__(Thing) *insight_typeof_dummy_ ## ID __attribute__((used)) = (void*)0; \
+        insight_type_of_str("insight_typeof_dummy_" #ID);                                       \
+    })
+#else
+# define type_of(Type) insight_type_of_str(#Type)
+#endif
 
 void insight_initialize(void);
 insight_type_info insight_type_of_str(const char *);

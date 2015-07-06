@@ -55,8 +55,12 @@ namespace Insight {
     };
 
     std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
+    std::unordered_map<std::string, std::shared_ptr<TypeInfo>> inferred_type_registry;
 
     const TypeInfo& type_of(std::string name) {
+        auto it = inferred_type_registry.find(name);
+        if (it != inferred_type_registry.end())
+            return *it->second;
         return *type_registry.at(name);
     }
 
@@ -237,6 +241,31 @@ namespace Insight {
         return structinfo;
     }
 
+    static Dwarf::Die::TraversalResult infer_types(Dwarf::Die &die, void *data) {
+        const Dwarf::Tag &tag = die.get_tag();
+        BuildContext* ctx_ = static_cast<BuildContext*>(data);
+        BuildContext& ctx = *ctx_;
+
+        switch (tag.get_id()) {
+            case DW_TAG_variable: {
+                std::string prefix = "insight_typeof_dummy_";
+                if (std::string(die.get_name()).substr(0, prefix.size()) != prefix)
+                    break;
+
+                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
+                if (!attr)
+                    break;
+
+                auto type = get_type(ctx, attr->as<Dwarf::Off>());
+                auto inferred_type = std::static_pointer_cast<PointerTypeInfoImpl>(type);
+                inferred_type_registry[die.get_name()] = inferred_type->type_.lock();
+            }
+            case DW_TAG_lexical_block: return Dwarf::Die::TraversalResult::TRAVERSE;
+            default: break;
+        }
+        return Dwarf::Die::TraversalResult::SKIP;
+    }
+
     static Dwarf::Die::TraversalResult build_metadata(Dwarf::Die &die, void *data) {
         const Dwarf::Tag &tag = die.get_tag();
         BuildContext& ctx = *static_cast<BuildContext*>(data);
@@ -253,7 +282,7 @@ namespace Insight {
             case DW_TAG_subprogram: {
                 std::unique_ptr<const Dwarf::Attribute> attrspec = die.get_attribute(DW_AT_specification);
                 if (!attrspec) {
-                    // TODO: handle functions
+                    die.traverse_headless(infer_types, &ctx);
                 } else {
                     Dwarf::Off off = attrspec->as<Dwarf::Off>();
                     auto it = ctx.methods.find(off);
