@@ -73,9 +73,13 @@ namespace Insight {
         virtual const bool is_virtual() const override;
         virtual const TypeInfo& return_type() const override;
         virtual const Range<TypeInfo> parameter_types() const override;
+        virtual size_t vtable_index() const override;
+
+        void set_vtable_index(size_t index);
 
         void* address_;
         bool virtual_;
+        size_t vtab_index_;
         std::weak_ptr<TypeInfo> return_type_;
         RangeCollection<TypeInfo> parameters_;
     };
@@ -87,8 +91,8 @@ namespace Insight {
         virtual const Range<FieldInfo> fields() const override;
         virtual const MethodInfo& method(std::string name) const override;
         virtual const FieldInfo& field(std::string name) const override;
-        void add_field(std::unique_ptr<FieldInfo>& field);
-        void add_method(std::unique_ptr<MethodInfo>& method);
+        void add_field(std::shared_ptr<FieldInfo> field);
+        void add_method(std::shared_ptr<MethodInfo> method);
 
         RangeCollection<MethodInfo> methods_;
         RangeCollection<FieldInfo> fields_;

@@ -27,7 +27,7 @@
 namespace Insight {
 
     template<typename T>
-    using RangeCollection = std::unordered_map<std::string, std::unique_ptr<T>>;
+    using RangeCollection = std::unordered_map<std::string, std::shared_ptr<T>>;
 
     template<typename T>
     class RangeIterator : public std::iterator<std::forward_iterator_tag, const T> {

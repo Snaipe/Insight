@@ -34,10 +34,7 @@ namespace Insight {
     using OffsetMap = std::unordered_map<size_t, T>;
 
     using TypeOffsetMap = OffsetMap<std::shared_ptr<TypeInfo>>;
-    using MethodOffsetMap = OffsetMap<MethodInfoImpl*>;
-
-    typedef std::unordered_map<size_t, std::shared_ptr<TypeInfo>> tom_t;
-    typedef std::unordered_map<size_t, MethodInfoImpl*> mom_t;
+    using MethodOffsetMap = OffsetMap<std::shared_ptr<MethodInfoImpl>>;
 
     std::shared_ptr<TypeInfo> VOID_TYPE = std::make_shared<PrimitiveTypeInfoImpl>("void", 0, PrimitiveKind::VOID);
 
@@ -209,7 +206,7 @@ namespace Insight {
                     break;
 
                 std::weak_ptr<TypeInfo> weak(get_type(*ctx, attr->as<Dwarf::Off>()));
-                std::unique_ptr<FieldInfo> finfo = std::make_unique<FieldInfoImpl>(die.get_name(), offset, weak);
+                std::shared_ptr<FieldInfo> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, weak);
                 structinfo->add_field(finfo);
             } break;
             case DW_TAG_subprogram: {
@@ -221,9 +218,18 @@ namespace Insight {
                     break;
 
                 std::weak_ptr<TypeInfo> return_type(get_type(*ctx, attr->as<Dwarf::Off>()));
-                std::unique_ptr<MethodInfo> method = std::make_unique<MethodInfoImpl>(die.get_name(), return_type);
+                std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type);
+
+                std::unique_ptr<const Dwarf::Attribute> vattr = die.get_attribute(DW_AT_virtuality);
+                std::unique_ptr<const Dwarf::Attribute> vtabattr = die.get_attribute(DW_AT_vtable_elem_location);
+                if (vattr && vtabattr) {
+                    Dwarf::Signed virtuality = vattr->as<Dwarf::Signed>();
+                    if (virtuality != DW_VIRTUALITY_none)
+                        method->set_vtable_index(vtabattr->as<uint64_t>());
+                }
+
                 Dwarf::Off off = die.get_offset();
-                ctx->methods[off] = static_cast<MethodInfoImpl*>(&*method);
+                ctx->methods[off] = method;
 
                 structinfo->add_method(method);
             } break;
@@ -249,13 +255,16 @@ namespace Insight {
 
     static Dwarf::Die::TraversalResult infer_types(Dwarf::Die &die, void *data) {
         const Dwarf::Tag &tag = die.get_tag();
-        BuildContext* ctx_ = static_cast<BuildContext*>(data);
-        BuildContext& ctx = *ctx_;
+        BuildContext& ctx = *static_cast<BuildContext*>(data);
 
         switch (tag.get_id()) {
             case DW_TAG_variable: {
+                const char *name = die.get_name();
+                if (!name)
+                    break;
+
                 std::string prefix = "insight_typeof_dummy_";
-                if (std::string(die.get_name()).substr(0, prefix.size()) != prefix)
+                if (std::string(name).substr(0, prefix.size()) != prefix)
                     break;
 
                 std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
@@ -298,26 +307,29 @@ namespace Insight {
                         break;
 
                     std::weak_ptr<TypeInfo> return_type(get_type(ctx, attr->as<Dwarf::Off>()));
-                    std::unique_ptr<MethodInfo> method = std::make_unique<MethodInfoImpl>(die.get_name(), return_type);
+                    std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type);
                     Dwarf::Off off = die.get_offset();
-                    MethodInfoImpl* m = ctx.methods[off] = static_cast<MethodInfoImpl*>(&*method);
+                    ctx.methods[off] = method;
 
                     std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
                     if (!attraddr)
                         break;
                     Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
 
-                    m->address_ = reinterpret_cast<void*>(addr);
+                    method->address_ = reinterpret_cast<void*>(addr);
                 } else {
                     Dwarf::Off off = attrspec->as<Dwarf::Off>();
                     auto it = ctx.methods.find(off);
                     if (it != ctx.methods.end()) {
+                        std::shared_ptr<MethodInfoImpl>& method = it->second;
+                        if (method->is_virtual())
+                            break;
+
                         std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
                         if (!attraddr)
                             break;
                         Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
 
-                        MethodInfoImpl* method = it->second;
                         method->address_ = reinterpret_cast<void*>(addr);
                     }
                 }

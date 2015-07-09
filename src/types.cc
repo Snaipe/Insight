@@ -26,6 +26,10 @@ namespace Insight {
     MethodInfoImpl::MethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type)
         : NameBase<MethodInfo>(std::string(name))
         , return_type_(return_type)
+        , virtual_(false)
+        , vtab_index_(0)
+        , address_(nullptr)
+        , parameters_()
     {}
 
     const void *MethodInfoImpl::address() const {
@@ -42,6 +46,15 @@ namespace Insight {
 
     const Range<TypeInfo> MethodInfoImpl::parameter_types() const {
         return Range<TypeInfo>(parameters_);
+    }
+
+    size_t MethodInfoImpl::vtable_index() const {
+        return vtab_index_;
+    }
+
+    void MethodInfoImpl::set_vtable_index(size_t index) {
+        virtual_ = true;
+        vtab_index_ = index;
     }
 
     // FieldInfo
@@ -76,11 +89,11 @@ namespace Insight {
         return Range<FieldInfo>(fields_);
     }
 
-    void StructInfoImpl::add_field(std::unique_ptr<FieldInfo>& field) {
+    void StructInfoImpl::add_field(std::shared_ptr<FieldInfo> field) {
         fields_[field->name()] = std::move(field);
     }
 
-    void StructInfoImpl::add_method(std::unique_ptr<MethodInfo>& method) {
+    void StructInfoImpl::add_method(std::shared_ptr<MethodInfo> method) {
         methods_[method->name()] = std::move(method);
     }
 
@@ -158,4 +171,5 @@ namespace Insight {
     void TypeDefInfoImpl::set_type(std::shared_ptr<TypeInfo> &type) {
         type_ = type;
     }
+
 }
