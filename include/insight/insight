@@ -25,15 +25,24 @@
 
 namespace Insight {
 
-    const TypeInfo& type_of(std::string name);
-    const TypeInfo& type_of(const std::type_info& info);
+    const TypeInfo& type_of_(void *dummy_addr);
+    const TypeInfo& type_of_(std::string name);
+    const TypeInfo& type_of_(const std::type_info& info);
     void initialize();
 
-    template<typename T>
-    const TypeInfo& type_of() {
-        return type_of(typeid(T));
-    }
-
 };
+
+// TODO: replace this in namespace Insight
+template<typename T>
+const Insight::TypeInfo& type_of_() {
+    static T *insight_typeof_dummy [[gnu::used]] = nullptr;
+    return Insight::type_of_(&insight_typeof_dummy);
+}
+
+# ifdef __GNUC__
+#  define type_of(Thing) (type_of_<__typeof__(Thing)>())
+# else
+#  define type_of(Thing) (type_of_<Thing>())
+# endif
 
 #endif /* !INSIGHT_INSIGHT_HH */

@@ -54,17 +54,18 @@ namespace Insight {
     };
 
     std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
-    std::unordered_map<std::string, std::shared_ptr<TypeInfo>> inferred_type_registry;
+    std::unordered_map<size_t, std::shared_ptr<TypeInfo>> inferred_type_registry;
 
-    const TypeInfo& type_of(std::string name) {
-        auto it = inferred_type_registry.find(name);
-        if (it != inferred_type_registry.end())
-            return *it->second;
+    const TypeInfo& type_of_(void *dummy_addr) {
+        return *inferred_type_registry.at(reinterpret_cast<size_t>(dummy_addr));
+    }
+
+    const TypeInfo& type_of_(std::string name) {
         return *type_registry.at(name);
     }
 
-    const TypeInfo& type_of(const std::type_info& info) {
-        return type_of(demangle(std::string(info.name())));
+    const TypeInfo& type_of_(const std::type_info& info) {
+        return type_of_(demangle(std::string(info.name())));
     }
 
     static size_t get_offset(Dwarf::Die &die) {
@@ -263,17 +264,22 @@ namespace Insight {
                 if (!name)
                     break;
 
-                std::string prefix = "insight_typeof_dummy_";
-                if (std::string(name).substr(0, prefix.size()) != prefix)
+                if (std::string(name) != "insight_typeof_dummy")
                     break;
 
                 std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
                 if (!attr)
                     break;
 
+                std::unique_ptr<const Dwarf::Attribute> locattr = die.get_attribute(DW_AT_location);
+                if (!locattr)
+                    break;
+
+                size_t loc = locattr->as<Dwarf::Off>();
+
                 auto type = get_type(ctx, attr->as<Dwarf::Off>());
                 auto inferred_type = std::static_pointer_cast<PointerTypeInfoImpl>(type);
-                inferred_type_registry[die.get_name()] = inferred_type->type_.lock();
+                inferred_type_registry[loc] = inferred_type->type_.lock();
             }
             case DW_TAG_lexical_block: return Dwarf::Die::TraversalResult::TRAVERSE;
             default: break;

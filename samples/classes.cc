@@ -22,7 +22,9 @@ int main(int argc, const char *argv[]) {
 
     TestClass instance(24);
 
-    const Insight::TypeInfo& type = Insight::type_of<TestClass>();
+    std::cout << type_of(42 * 3. + 2).name() << std::endl;
+
+    const Insight::TypeInfo& type = type_of(instance);
     if (auto* clazz = dynamic_cast<const Insight::StructInfo*>(&type)) {
         // access and set the field
         std::cout << "Before: field = " << instance.get_field() << std::endl;

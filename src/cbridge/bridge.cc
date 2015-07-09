@@ -45,7 +45,15 @@ void insight_initialize(void) {
 
 insight_type_info insight_type_of_str(const char *name) {
     try {
-        return &Insight::type_of(name);
+        return &Insight::type_of_(name);
+    } catch (std::out_of_range &ex) {
+        return NULL;
+    }
+}
+
+insight_type_info insight_type_of_addr(void *addr) {
+    try {
+        return &Insight::type_of_(addr);
     } catch (std::out_of_range &ex) {
         return NULL;
     }
