@@ -23,29 +23,14 @@ namespace Insight {
 
     // MethodInfo
 
-    MethodInfoImpl::MethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type)
-        : NameBase<MethodInfo>(std::string(name))
-        , return_type_(return_type)
+    MethodInfoImpl::MethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
+        : CallableBase<MethodInfo>(name, return_type, parent)
         , virtual_(false)
         , vtab_index_(0)
-        , address_(nullptr)
-        , parameters_()
     {}
-
-    const void *MethodInfoImpl::address() const {
-        return address_;
-    }
 
     const bool MethodInfoImpl::is_virtual() const {
         return virtual_;
-    }
-
-    const TypeInfo &MethodInfoImpl::return_type() const {
-        return *return_type_.lock();
-    }
-
-    const Range<TypeInfo> MethodInfoImpl::parameter_types() const {
-        return Range<TypeInfo>(parameters_);
     }
 
     size_t MethodInfoImpl::vtable_index() const {
@@ -57,59 +42,59 @@ namespace Insight {
         vtab_index_ = index;
     }
 
-    // FieldInfo
+    // FunctionInfo
 
-    FieldInfoImpl::FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type)
-        : NameBase<FieldInfo>(std::string(name))
-        , offset_(offset)
-        , type_(type)
+    FunctionInfoImpl::FunctionInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
+            : CallableBase<FunctionInfo>(name, return_type, parent)
     {}
 
-    const TypeInfo& FieldInfoImpl::type() const {
-        return *type_.lock();
-    }
+    // FieldInfo
+
+    FieldInfoImpl::FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type, Container& parent)
+        : TypedBase<FieldInfo>(name, type, parent)
+        , offset_(offset)
+    {}
 
     const size_t FieldInfoImpl::offset() const {
         return offset_;
+    }
+
+    // VariableInfo
+
+    VariableInfoImpl::VariableInfoImpl(const char *name, void* address, std::weak_ptr<TypeInfo> type, Container& parent)
+        : TypedBase<VariableInfo>(name, type, parent)
+        , address_(address)
+    {}
+
+    void* VariableInfoImpl::address() const {
+        return address_;
     }
 
     // StructInfo
 
     StructInfoImpl::StructInfoImpl(std::string& name, size_t size)
         : TypeBase(name, size)
-        , fields_()
-        , methods_()
     {}
 
-    Range<MethodInfo> const StructInfoImpl::methods() const {
-        return Range<MethodInfo>(methods_);
-    }
+    // NamespaceInfo
+    NamespaceInfoImpl::NamespaceInfoImpl(const char* name, Container& parent)
+        : ChildBase(std::string(name), parent)
+    {}
 
-    Range<FieldInfo> const StructInfoImpl::fields() const {
-        return Range<FieldInfo>(fields_);
-    }
-
-    void StructInfoImpl::add_field(std::shared_ptr<FieldInfo> field) {
-        fields_[field->name()] = std::move(field);
-    }
-
-    void StructInfoImpl::add_method(std::shared_ptr<MethodInfo> method) {
-        methods_[method->name()] = std::move(method);
-    }
-
-    const MethodInfo& StructInfoImpl::method(std::string name) const {
-        return *methods_.at(name);
-    }
-
-    const FieldInfo& StructInfoImpl::field(std::string name) const {
-        return *fields_.at(name);
-    }
+    NamespaceInfoImpl::NamespaceInfoImpl(const char* name)
+            : ChildBase(std::string(name), *this)
+    {}
 
     // PrimitiveTypeInfo
 
-    PrimitiveTypeInfoImpl::PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind)
-        : TypeBase(std::string(name), size)
+    PrimitiveTypeInfoImpl::PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind, Container& parent)
+        : TypeBase(std::string(name), size, parent)
         , kind_(kind)
+    {}
+
+    PrimitiveTypeInfoImpl::PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind)
+            : TypeBase(std::string(name), size)
+            , kind_(kind)
     {}
 
     PrimitiveKind PrimitiveTypeInfoImpl::kind() const {
@@ -136,8 +121,8 @@ namespace Insight {
     {}
 
     ConstTypeInfoImpl::ConstTypeInfoImpl()
-            : TypeBase()
-            , type_()
+        : TypeBase()
+        , type_()
     {}
 
     TypeInfo &ConstTypeInfoImpl::type() const {

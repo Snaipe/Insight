@@ -24,6 +24,35 @@
 # include "insight/types"
 # include "insight/range"
 
+#define MIXIN(Name, Type)                                               \
+    class Type ## Container {                                           \
+    public:                                                             \
+        virtual const Range<Type> Name ## s() const = 0;                \
+        virtual const Type& Name(std::string name) const = 0;           \
+        virtual void add_ ## Name(std::shared_ptr<Type> Name) = 0;      \
+    };                                                                  \
+                                                                        \
+    template <typename T>                                               \
+    class Type ## ContainerBase : public T, public Type ## Container {  \
+    public:                                                             \
+        Type ## ContainerBase() : T(), Name ## s_() {}                  \
+                                                                        \
+        virtual const Range<Type> Name ## s() const override {          \
+            return Range<Type>(Name ## s_);                             \
+        }                                                               \
+                                                                        \
+        virtual const Type& Name(std::string name) const override {     \
+            return *Name ## s_.at(name);                                \
+        }                                                               \
+                                                                        \
+        virtual void add_ ## Name(std::shared_ptr<Type> Name) {         \
+            Name ## s_[Name->name()] = Name;                            \
+        }                                                               \
+                                                                        \
+        RangeCollection<Type> Name ## s_;                               \
+    }
+
+
 extern Dwarf::Debug &dbg;
 
 namespace Insight {
@@ -31,7 +60,7 @@ namespace Insight {
     template <class T>
     class NameBase : public T {
     public:
-        NameBase() : name_("") {}
+        NameBase() : T(), name_("") {}
         NameBase(const std::string& name) : name_(name) {}
         NameBase(std::string&& name) : name_(name) {}
         virtual const std::string& name() const override {
@@ -41,65 +70,173 @@ namespace Insight {
         std::string name_;
     };
 
-    template <class T>
-    class TypeBase : public NameBase<T> {
+    class Child {
     public:
-        TypeBase() : NameBase<T>(), size_(0) {}
-        TypeBase(const std::string &name) : NameBase<T>(name), size_(0) {}
-        TypeBase(std::string&& name) : NameBase<T>(name), size_(0) {}
-        TypeBase(const std::string& name, size_t size) : NameBase<T>(name), size_(size) {}
-        TypeBase(std::string&& name, size_t size) : NameBase<T>(name), size_(size) {}
+        virtual Container& parent() const = 0;
+        virtual void set_parent(Container* parent) = 0;
+    };
+
+    template <class T>
+    class ChildBase : public NameBase<T>, public Child {
+    public:
+        ChildBase() : NameBase<T>(), parent_(nullptr) {}
+        ChildBase(Container& parent) : NameBase<T>(), parent_(&parent) {}
+        ChildBase(const std::string &name) : NameBase<T>(name), parent_(nullptr) {}
+        ChildBase(std::string&& name) : NameBase<T>(name), parent_(nullptr) {}
+        ChildBase(const std::string &name, Container& parent) : NameBase<T>(name), parent_(&parent) {}
+        ChildBase(std::string&& name, Container& parent) : NameBase<T>(name), parent_(&parent) {}
+
+        virtual Container& parent() const override {
+            return *parent_;
+        }
+
+        virtual void set_parent(Container* parent) {
+            parent_ = parent;
+        }
+
+        Container* parent_;
+    };
+
+    template <class T>
+    class TypeBase : public ChildBase<T> {
+    public:
+        TypeBase() : ChildBase<T>(), size_(0) {}
+        TypeBase(const std::string &name) : ChildBase<T>(name), size_(0) {}
+        TypeBase(std::string&& name) : ChildBase<T>(name), size_(0) {}
+        TypeBase(const std::string& name, size_t size) : ChildBase<T>(name), size_(size) {}
+        TypeBase(std::string&& name, size_t size) : ChildBase<T>(name), size_(size) {}
+        TypeBase(const std::string& name, size_t size, Container& parent) : ChildBase<T>(name, parent), size_(size) {}
+        TypeBase(std::string&& name, size_t size, Container& parent) : ChildBase<T>(name, parent), size_(size) {}
+
         virtual size_t size_of() const override {
             return size_;
         };
 
+        virtual void *allocate() const {
+            void* ptr = ::operator new(size_of());
+            initialize(ptr);
+        }
+
+        virtual void initialize(void *ptr) const {}
+
         size_t size_;
     };
 
-    class FieldInfoImpl : public NameBase<FieldInfo> {
-    public:
-        FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type);
-        virtual const TypeInfo& type() const override;
-        virtual const size_t offset() const override;
+    MIXIN(function, FunctionInfo);
+    MIXIN(method, MethodInfo);
+    MIXIN(field, FieldInfo);
+    MIXIN(variable, VariableInfo);
+    MIXIN(nested_namespace, NamespaceInfo);
+    MIXIN(type, TypeInfo);
 
-        size_t offset_;
+    class ContainerImpl : public TypeInfoContainer, public FunctionInfoContainer, public VariableInfoContainer {
+    };
+
+    template <typename T>
+    using ContainerBase =
+            FunctionInfoContainerBase<
+                    VariableInfoContainerBase<
+                            TypeInfoContainerBase<
+                                    NamespaceInfoContainerBase<T>
+                            >
+                    >
+            >;
+
+    template <typename T>
+    using CompoundTypeBase =
+            FunctionInfoContainerBase<
+                    VariableInfoContainerBase<
+                            TypeInfoContainerBase<
+                                    MethodInfoContainerBase<
+                                            FieldInfoContainerBase<T>
+                                    >
+                            >
+                    >
+            >;
+
+    template <class T>
+    class TypedBase : public ChildBase<T> {
+    public:
+        TypedBase(const char *name, std::weak_ptr<TypeInfo> type, Container& parent)
+            : ChildBase<T>(std::string(name), parent)
+            , type_(type)
+        {}
+
+        virtual const TypeInfo& type() const override {
+            return *type_.lock();
+        }
+
         std::weak_ptr<TypeInfo> type_;
     };
 
-    class MethodInfoImpl : public NameBase<MethodInfo> {
+    class FieldInfoImpl : public TypedBase<FieldInfo> {
     public:
-        MethodInfoImpl(const char *name, std::weak_ptr<TypeInfo> return_type);
-        virtual const void* address() const override;
-        virtual const bool is_virtual() const override;
-        virtual const TypeInfo& return_type() const override;
-        virtual const Range<TypeInfo> parameter_types() const override;
-        virtual size_t vtable_index() const override;
+        FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type, Container& parent);
+        virtual const size_t offset() const override;
 
-        void set_vtable_index(size_t index);
+        size_t offset_;
+    };
+
+    class VariableInfoImpl : public TypedBase<VariableInfo> {
+    public:
+        VariableInfoImpl(const char *name, void* address, std::weak_ptr<TypeInfo> type, Container& parent);
+        virtual void* address() const override;
 
         void* address_;
-        bool virtual_;
-        size_t vtab_index_;
+    };
+
+    template <class T>
+    class CallableBase : public ChildBase<T> {
+    public:
+        CallableBase(const char *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
+                : ChildBase<T>(std::string(name), parent)
+                , address_(nullptr)
+                , return_type_(return_type)
+                , parameters_()
+        {}
+
+        virtual const void* address() const override {
+            return address_;
+        }
+
+        virtual const TypeInfo& return_type() const override {
+            return *return_type_.lock();
+        }
+
+        virtual const Range<TypeInfo> parameter_types() const override {
+            return Range<TypeInfo>(parameters_);
+        }
+
+        void* address_;
         std::weak_ptr<TypeInfo> return_type_;
         RangeCollection<TypeInfo> parameters_;
     };
 
-    class StructInfoImpl : public TypeBase<StructInfo> {
+    class MethodInfoImpl : public CallableBase<MethodInfo> {
+    public:
+        MethodInfoImpl(const char *name, std::weak_ptr<TypeInfo> return_type, Container& parent);
+        virtual const bool is_virtual() const override;
+        virtual size_t vtable_index() const override;
+
+        void set_vtable_index(size_t index);
+
+        bool virtual_;
+        size_t vtab_index_;
+    };
+
+    class FunctionInfoImpl : public CallableBase<FunctionInfo> {
+    public:
+        FunctionInfoImpl(const char *name, std::weak_ptr<TypeInfo> return_type, Container& parent);
+    };
+
+    class StructInfoImpl : public TypeBase<CompoundTypeBase<StructInfo>> {
     public:
         StructInfoImpl(std::string& name, size_t size);
-        virtual const Range<MethodInfo> methods() const override;
-        virtual const Range<FieldInfo> fields() const override;
-        virtual const MethodInfo& method(std::string name) const override;
-        virtual const FieldInfo& field(std::string name) const override;
-        void add_field(std::shared_ptr<FieldInfo> field);
-        void add_method(std::shared_ptr<MethodInfo> method);
-
-        RangeCollection<MethodInfo> methods_;
-        RangeCollection<FieldInfo> fields_;
     };
 
     class PrimitiveTypeInfoImpl : public TypeBase<PrimitiveTypeInfo> {
     public:
+        PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind, Container& parent);
         PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind);
         virtual PrimitiveKind kind() const override;
 
@@ -137,6 +274,12 @@ namespace Insight {
         void set_type(std::shared_ptr<TypeInfo>& type);
 
         std::weak_ptr<TypeInfo> type_;
+    };
+
+    class NamespaceInfoImpl : public ChildBase<ContainerBase<NamespaceInfo>> {
+    public:
+        NamespaceInfoImpl(const char* name);
+        NamespaceInfoImpl(const char* name, Container& parent);
     };
 }
 

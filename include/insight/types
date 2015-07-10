@@ -25,6 +25,9 @@
 
 namespace Insight {
 
+    class NamespaceInfo;
+    class Container;
+
     class Named {
     public:
         virtual const std::string& name() const = 0;
@@ -33,6 +36,7 @@ namespace Insight {
     class TypeInfo : public Named {
     public:
         virtual size_t size_of() const = 0;
+        virtual Container& parent() const = 0;
     };
 
     enum PrimitiveKind {
@@ -77,9 +81,13 @@ namespace Insight {
     class MemberInfo : public Named {
     };
 
-    class FieldInfo : public MemberInfo {
+    class TypedInfo {
     public:
         virtual const TypeInfo& type() const = 0;
+    };
+
+    class FieldInfo : public TypedInfo, public MemberInfo {
+    public:
         virtual const size_t offset() const = 0;
 
         template<typename T, typename V>
@@ -87,17 +95,42 @@ namespace Insight {
             V* target = reinterpret_cast<V*>(reinterpret_cast<char*>(&instance) + offset());
             *target = value;
         }
+
+        template<typename T, typename V>
+        V& get(T& instance) const {
+            return *reinterpret_cast<V*>(reinterpret_cast<char*>(&instance) + offset());
+        }
+    };
+
+    class VariableInfo : public TypedInfo, public Named {
+    public:
+        virtual void* address() const = 0;
+
+        template<typename V>
+        void set(V value) const {
+            V* target = reinterpret_cast<V*>(address());
+            *target = value;
+        }
+
+        template<typename V>
+        V& get() const {
+            return *reinterpret_cast<V*>(address());
+        }
     };
 
     class NoSuchFieldException : public std::exception {
 
     };
 
-    class MethodInfo : public MemberInfo {
+    class Callable {
     public:
         virtual const TypeInfo& return_type() const = 0;
         virtual const Range<TypeInfo> parameter_types() const = 0;
         virtual const void* address() const = 0;
+    };
+
+    class MethodInfo : public Callable, public MemberInfo {
+    public:
         virtual const bool is_virtual() const = 0;
         virtual size_t vtable_index() const = 0;
 
@@ -118,7 +151,31 @@ namespace Insight {
         }
     };
 
-    class StructInfo : public TypeInfo {
+    class FunctionInfo : public Callable, public Named {
+    public:
+
+        template<typename R, typename ...Args>
+        R call(Args... args) const {
+            using FuncType = R (*)(Args...);
+            const void* addr = address();
+            if (!addr)
+                throw std::runtime_error("No address for function " + name());
+            FuncType func = reinterpret_cast<FuncType>(addr);
+            return func(args...);
+        }
+    };
+
+    class Container {
+    public:
+        virtual const Range<FunctionInfo> functions() const = 0;
+        virtual const FunctionInfo& function(std::string name) const = 0;
+        virtual const Range<VariableInfo> variables() const = 0;
+        virtual const VariableInfo& variable(std::string name) const = 0;
+        virtual const Range<TypeInfo> types() const = 0;
+        virtual const TypeInfo& type(std::string name) const = 0;
+    };
+
+    class StructInfo : public TypeInfo, public Container {
     public:
         virtual const Range<MethodInfo> methods() const = 0;
         virtual const MethodInfo& method(std::string name) const = 0;
@@ -139,6 +196,13 @@ namespace Insight {
     class TypeDefInfo : public TypeInfo {
     public:
         virtual TypeInfo& aliased_type() const = 0;
+    };
+
+    class NamespaceInfo : public Named, public Container {
+    public:
+        virtual const Range<NamespaceInfo> nested_namespaces() const = 0;
+        virtual const NamespaceInfo& nested_namespace(std::string name) const = 0;
+        virtual Container& parent() const = 0;
     };
 
 }
