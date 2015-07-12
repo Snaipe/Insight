@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project(Insight)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/.cmake/Modules/")
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -std=c11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=c++14")
 
@@ -23,13 +25,16 @@ set(INTERFACE_FILES
 add_subdirectory(samples)
 
 include_directories(include src)
-add_library(insight ${SOURCE_FILES} ${INTERFACE_FILES})
+add_library(insight SHARED ${SOURCE_FILES} ${INTERFACE_FILES})
 
 link_directories(/usr/lib)
 target_link_libraries(insight elf dwarf dwarf++)
 
-install(FILES ${INTERFACE_FILES} DESTINATION include)
+install(FILES ${INTERFACE_FILES} DESTINATION include/insight)
 install(TARGETS insight
   LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
+)
+
+add_custom_target(uninstall
+    "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake"
 )
