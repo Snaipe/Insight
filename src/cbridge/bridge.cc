@@ -34,10 +34,6 @@ e_insight_type_kind insight_type_kind(insight_type_info type) {
     return INSIGHT_KIND_UNKNOWN;
 }
 
-void insight_initialize(void) {
-    Insight::initialize();
-}
-
 insight_type_info insight_type_of_str(const char *name) {
     try {
         return &Insight::type_of_(name);

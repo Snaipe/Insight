@@ -429,7 +429,6 @@ namespace Insight {
     }
 
     void initialize() {
-
         std::shared_ptr<const Dwarf::Debug> dbg = Dwarf::Debug::self();
         type_registry["void"] = VOID_TYPE;
 
@@ -443,4 +442,7 @@ namespace Insight {
     }
 }
 
-
+static class Init {
+public:
+    Init() { Insight::initialize(); }
+} init;

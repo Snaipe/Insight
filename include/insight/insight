@@ -30,7 +30,6 @@ namespace Insight {
     const TypeInfo& type_of_(const std::type_info& info);
 
     NamespaceInfo& root_namespace();
-    void initialize();
 
 };
 

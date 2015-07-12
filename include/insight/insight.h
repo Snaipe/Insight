@@ -32,7 +32,6 @@
 # define type_of(Type) insight_type_of_str(#Type)
 #endif
 
-void insight_initialize(void);
 insight_type_info insight_type_of_str(const char *);
 insight_type_info insight_type_of_addr(void *);
 

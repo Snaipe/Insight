@@ -6,8 +6,6 @@ struct test_struct {
 };
 
 int main(int argc, const char *argv[]) {
-    insight_initialize();
-
     struct test_struct t = {24};
 
     const insight_struct_info type = (const insight_struct_info) insight_type_of(test_struct);

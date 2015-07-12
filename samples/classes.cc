@@ -18,8 +18,6 @@ int TestClass::get_field() {
 }
 
 int main(int argc, const char *argv[]) {
-    Insight::initialize();
-
     TestClass instance(24);
 
     std::cout << type_of(42 * 3. + 2).name() << std::endl;
