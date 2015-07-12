@@ -433,10 +433,10 @@ namespace Insight {
         std::shared_ptr<const Dwarf::Debug> dbg = Dwarf::Debug::self();
         type_registry["void"] = VOID_TYPE;
 
-        BuildContext ctx(*dbg);
-        ctx.namespace_stack.push(&ROOT_NAMESPACE);
-
         for (const Dwarf::CompilationUnit &cu : *dbg) {
+            BuildContext ctx(*dbg);
+            ctx.namespace_stack.push(&ROOT_NAMESPACE);
+
             cu.get_die()->traverse_headless(Insight::build_metadata, &ctx);
         }
 
