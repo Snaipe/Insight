@@ -1,0 +1,54 @@
+/*
+ * This file is part of Insight.
+ *
+ * Copyright © 2015 Franklin "Snaipe" Mathieu <http://snaipe.me>
+ *
+ * Insight is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Insight is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Insight.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#ifndef INSIGHT_ANNOTATE_HH
+# define INSIGHT_ANNOTATE_HH
+
+#  define insight_annotation(Name) \
+    struct insight_annotation_ ## Name
+
+# ifdef __cplusplus
+#  include "designated_initializer_compat.h"
+
+#  define insight_annotate_decl(Line, Name, ...) \
+    static insight_annotation_ ## Name insight_annotation_ ## Line
+
+#  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
+#  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
+#  define insight_annotate__(Line, ...) insight_annotate_decl(Line, __VA_ARGS__) = {    \
+        INSIGHT_ANNOTATION_ADD_PREFIX(insight_annotation_ ## Line, __VA_ARGS__)         \
+    };
+# else
+#  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
+#  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
+#  define insight_annotate__(Line, Name, ...)                                           \
+    static const struct insight_annotation_ ## Name insight_annotation_ ## Line = {     \
+        __VA_ARGS__                                                                     \
+    };
+# endif
+
+# ifdef USE_DOLLAR_ANNOTATIONS
+#  ifndef __GNUC__
+#   error Dollar-sign annotation are only supported on GNU compilers
+#  else
+#   define $ insight_annotate
+#  endif
+# endif
+
+#endif /* !INSIGHT_ANNOTATE_HH */
