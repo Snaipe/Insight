@@ -23,21 +23,16 @@
 
 extern "C" {
 
-namespace Insight {
-    struct FieldInfo;
-    struct MethodInfo;
-    struct MemberInfo;
-    struct StructInfo;
-    struct PrimitiveInfo;
-    struct TypeInfo;
-}
+#include "insight/types.h"
 
-typedef const Insight::FieldInfo *insight_field_info;
-typedef const Insight::MethodInfo *insight_method_info;
-typedef const Insight::MemberInfo *insight_member_info;
-typedef const Insight::StructInfo *insight_struct_info;
-typedef const Insight::PrimitiveTypeInfo *insight_primitive_info;
-typedef const Insight::TypeInfo *insight_type_info;
+e_insight_type_kind insight_type_kind(insight_type_info type) {
+    if (dynamic_cast<const Insight::StructInfo*>(type)) {
+        return INSIGHT_KIND_STRUCT;
+    } else if (dynamic_cast<const Insight::PrimitiveTypeInfo*>(type)) {
+        return INSIGHT_KIND_PRIMITIVE;
+    }
+    return INSIGHT_KIND_UNKNOWN;
+}
 
 void insight_initialize(void) {
     Insight::initialize();
@@ -81,6 +76,21 @@ void insight_field_get(insight_field_info info, void *instance, void *data, size
     assert(info->type().size_of() == datasize);
     void* field = static_cast<char*>(instance) + info->offset();
     std::memcpy(data, field, datasize);
+}
+
+void insight_iter_fields(insight_struct_info type, insight_field_iter_handle handle) {
+    for (auto& field : type->fields())
+        handle(&field);
+}
+
+void insight_iter_methods(insight_struct_info type, insight_method_iter_handle handle) {
+    for (auto& method : type->methods())
+        handle(&method);
+}
+
+void insight_iter_types(insight_container_info type, insight_type_iter_handle handle) {
+    for (auto& t : type->types())
+        handle(&t);
 }
 
 }

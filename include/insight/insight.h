@@ -36,8 +36,12 @@ void insight_initialize(void);
 insight_type_info insight_type_of_str(const char *);
 insight_type_info insight_type_of_addr(void *);
 
-
+e_insight_type_kind insight_type_kind(insight_type_info type);
 const char *insight_type_name(insight_type_info type);
+
+void insight_iter_fields(insight_struct_info type, insight_field_iter_handle handle);
+void insight_iter_methods(insight_struct_info type, insight_field_iter_handle handle);
+void insight_iter_types(insight_container_info type, insight_field_iter_handle handle);
 
 insight_field_info insight_field(insight_struct_info info, const char *name);
 void insight_field_set(insight_field_info info, void *instance, void *data, size_t datasize);

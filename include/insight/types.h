@@ -20,12 +20,32 @@
 #ifndef INSIGHT_TYPES_H
 # define INSIGHT_TYPES_H
 
+# ifdef __cplusplus
+namespace Insight {
+    struct FieldInfo;
+    struct MethodInfo;
+    struct MemberInfo;
+    struct StructInfo;
+    struct PrimitiveTypeInfo;
+    struct TypeInfo;
+    struct Container;
+}
+
+typedef const Insight::FieldInfo *insight_field_info;
+typedef const Insight::MethodInfo *insight_method_info;
+typedef const Insight::MemberInfo *insight_member_info;
+typedef const Insight::StructInfo *insight_struct_info;
+typedef const Insight::PrimitiveTypeInfo *insight_primitive_info;
+typedef const Insight::TypeInfo *insight_type_info;
+typedef const Insight::Container *insight_container_info;
+# else
 struct insight_field_info_s;
 struct insight_method_info_s;
 struct insight_member_info_s;
 struct insight_struct_info_s;
 struct insight_primitive_info_s;
 struct insight_type_info_s;
+struct insight_container_info_s;
 
 typedef struct insight_field_info_s *insight_field_info;
 typedef struct insight_method_info_s *insight_method_info;
@@ -33,5 +53,19 @@ typedef struct insight_member_info_s *insight_member_info;
 typedef struct insight_struct_info_s *insight_struct_info;
 typedef struct insight_primitive_info_s *insight_primitive_info;
 typedef struct insight_type_info_s *insight_type_info;
+typedef struct insight_container_info_s *insight_container_info;
+# endif
+
+typedef void (*insight_field_iter_handle)(insight_field_info field);
+typedef void (*insight_method_iter_handle)(insight_method_info method);
+typedef void (*insight_type_iter_handle)(insight_type_info type);
+
+typedef enum {
+    INSIGHT_KIND_UNKNOWN,
+    INSIGHT_KIND_PRIMITIVE,
+    INSIGHT_KIND_STRUCT,
+    INSIGHT_KIND_UNION,
+    INSIGHT_KIND_ENUM,
+} e_insight_type_kind;
 
 #endif /* !INSIGHT_TYPES_H */
