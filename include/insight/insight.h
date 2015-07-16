@@ -23,14 +23,18 @@
 # include <stddef.h>
 # include "types.h"
 
-#if defined(__GNUC__)
-# define type_of(Thing) ({                                                                  \
+# if defined(__GNUC__)
+#  define insight_type_of(Thing) ({                                                         \
         static __typeof__(Thing) *insight_typeof_dummy __attribute__((used)) = (void*)0;    \
-        insight_type_of_addr(&insight_typeof_dummy);                                         \
+        insight_type_of_addr(&insight_typeof_dummy);                                        \
     })
-#else
-# define type_of(Type) insight_type_of_str(#Type)
-#endif
+# else
+#  define insight_type_of(Type) insight_type_of_str(#Type)
+# endif
+
+# ifndef type_of
+#  define type_of insight_type_of
+# endif
 
 insight_type_info insight_type_of_str(const char *);
 insight_type_info insight_type_of_addr(void *);

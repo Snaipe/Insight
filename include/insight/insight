@@ -41,9 +41,13 @@ const Insight::TypeInfo& type_of_() {
 }
 
 # ifdef __GNUC__
-#  define type_of(Thing) (type_of_<__typeof__(Thing)>())
+#  define insight_type_of(Thing) (type_of_<__typeof__(Thing)>())
 # else
-#  define type_of(Thing) (type_of_<Thing>())
+#  define insight_type_of(Thing) (type_of_<Thing>())
+# endif
+
+# ifndef type_of
+#  define type_of insight_type_of
 # endif
 
 #endif /* !INSIGHT_INSIGHT_HH */
