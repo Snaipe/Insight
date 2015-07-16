@@ -33,7 +33,7 @@ namespace Insight {
         virtual const std::string& name() const = 0;
     };
 
-    class TypeInfo : public Named {
+    class TypeInfo : virtual public Named {
     public:
         virtual size_t size_of() const = 0;
         virtual Container& parent() const = 0;
@@ -73,12 +73,12 @@ namespace Insight {
 
     };
 
-    class PrimitiveTypeInfo : public TypeInfo {
+    class PrimitiveTypeInfo : virtual public TypeInfo {
     public:
         virtual PrimitiveKind kind() const = 0;
     };
 
-    class MemberInfo : public Named {
+    class MemberInfo : virtual public Named {
     };
 
     class TypedInfo {
@@ -86,7 +86,7 @@ namespace Insight {
         virtual const TypeInfo& type() const = 0;
     };
 
-    class FieldInfo : public TypedInfo, public MemberInfo {
+    class FieldInfo : virtual public TypedInfo, virtual public MemberInfo {
     public:
         virtual const size_t offset() const = 0;
 
@@ -102,7 +102,7 @@ namespace Insight {
         }
     };
 
-    class VariableInfo : public TypedInfo, public Named {
+    class VariableInfo : virtual public TypedInfo, virtual public Named {
     public:
         virtual void* address() const = 0;
 
@@ -129,7 +129,7 @@ namespace Insight {
         virtual const void* address() const = 0;
     };
 
-    class MethodInfo : public Callable, public MemberInfo {
+    class MethodInfo : virtual public Callable, virtual public MemberInfo {
     public:
         virtual const bool is_virtual() const = 0;
         virtual size_t vtable_index() const = 0;
@@ -151,7 +151,7 @@ namespace Insight {
         }
     };
 
-    class FunctionInfo : public Callable, public Named {
+    class FunctionInfo : virtual public Callable, virtual public Named {
     public:
 
         template<typename R, typename ...Args>
@@ -165,7 +165,7 @@ namespace Insight {
         }
     };
 
-    class Container {
+    class Container : virtual public Named {
     public:
         virtual const Range<FunctionInfo> functions() const = 0;
         virtual const FunctionInfo& function(std::string name) const = 0;
@@ -175,7 +175,7 @@ namespace Insight {
         virtual const TypeInfo& type(std::string name) const = 0;
     };
 
-    class StructInfo : public TypeInfo, public Container {
+    class StructInfo : virtual public TypeInfo, virtual public Container {
     public:
         virtual const Range<MethodInfo> methods() const = 0;
         virtual const MethodInfo& method(std::string name) const = 0;
@@ -183,22 +183,22 @@ namespace Insight {
         virtual const FieldInfo& field(std::string name) const = 0;
     };
 
-    class PointerTypeInfo : public TypeInfo {
+    class PointerTypeInfo : virtual public TypeInfo {
     public:
         virtual TypeInfo& pointed_type() const = 0;
     };
 
-    class ConstTypeInfo : public TypeInfo {
+    class ConstTypeInfo : virtual public TypeInfo {
     public:
         virtual TypeInfo& type() const = 0;
     };
 
-    class TypeDefInfo : public TypeInfo {
+    class TypeDefInfo : virtual public TypeInfo {
     public:
         virtual TypeInfo& aliased_type() const = 0;
     };
 
-    class NamespaceInfo : public Named, public Container {
+    class NamespaceInfo : virtual public Container {
     public:
         virtual const Range<NamespaceInfo> nested_namespaces() const = 0;
         virtual const NamespaceInfo& nested_namespace(std::string name) const = 0;

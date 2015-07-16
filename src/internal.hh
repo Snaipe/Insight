@@ -33,7 +33,7 @@
     };                                                                  \
                                                                         \
     template <typename T>                                               \
-    class Type ## ContainerBase : public T, public Type ## Container {  \
+    class Type ## ContainerBase : public T, virtual public Type ## Container {  \
     public:                                                             \
         Type ## ContainerBase() : T(), Name ## s_() {}                  \
                                                                         \
@@ -77,7 +77,7 @@ namespace Insight {
     };
 
     template <class T>
-    class ChildBase : public NameBase<T>, public Child {
+    class ChildBase : public NameBase<T>, virtual public Child {
     public:
         ChildBase() : NameBase<T>(), parent_(nullptr) {}
         ChildBase(Container& parent) : NameBase<T>(), parent_(&parent) {}
@@ -90,7 +90,7 @@ namespace Insight {
             return *parent_;
         }
 
-        virtual void set_parent(Container* parent) {
+        virtual void set_parent(Container* parent) override {
             parent_ = parent;
         }
 
@@ -128,9 +128,6 @@ namespace Insight {
     MIXIN(variable, VariableInfo);
     MIXIN(nested_namespace, NamespaceInfo);
     MIXIN(type, TypeInfo);
-
-    class ContainerImpl : public TypeInfoContainer, public FunctionInfoContainer, public VariableInfoContainer {
-    };
 
     template <typename T>
     using ContainerBase =

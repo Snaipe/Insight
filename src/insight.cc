@@ -145,7 +145,7 @@ namespace Insight {
         if (t != type_registry.end()) {
             type = t->second;
             if (register_parent) {
-                Child *child = reinterpret_cast<Child *>(&*type);
+                Child *child = dynamic_cast<Child *>(&*type);
                 child->set_parent(parent);
             }
         } else {
@@ -345,7 +345,7 @@ namespace Insight {
                 size_t loc = locattr->as<Dwarf::Off>();
 
                 auto type = get_type(ctx, attr->as<Dwarf::Off>());
-                auto inferred_type = std::static_pointer_cast<PointerTypeInfoImpl>(type);
+                auto inferred_type = std::dynamic_pointer_cast<PointerTypeInfoImpl>(type);
                 inferred_type_registry[loc] = inferred_type->type_.lock();
             }
             case DW_TAG_lexical_block: return Dwarf::Die::TraversalResult::TRAVERSE;
@@ -366,7 +366,7 @@ namespace Insight {
                 std::shared_ptr<NamespaceInfoImpl> ns;
                 auto it = parentns->nested_namespaces_.find(die.get_name());
                 if (it != parentns->nested_namespaces_.end()) {
-                    ns = std::static_pointer_cast<NamespaceInfoImpl>(it->second);
+                    ns = std::dynamic_pointer_cast<NamespaceInfoImpl>(it->second);
                 } else {
                     ns = std::make_shared<NamespaceInfoImpl>(die.get_name(), *parent);
                     parentns->add_nested_namespace(ns);
