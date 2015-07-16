@@ -181,6 +181,8 @@ namespace Insight {
         virtual const MethodInfo& method(std::string name) const = 0;
         virtual const Range<FieldInfo> fields() const = 0;
         virtual const FieldInfo& field(std::string name) const = 0;
+        virtual const WeakRange<TypeInfo> supertypes() const = 0;
+        virtual const TypeInfo& supertype(std::string name) const = 0;
     };
 
     class PointerTypeInfo : virtual public TypeInfo {

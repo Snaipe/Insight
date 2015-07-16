@@ -30,19 +30,61 @@ namespace Insight {
     using RangeCollection = std::unordered_map<std::string, std::shared_ptr<T>>;
 
     template<typename T>
-    class RangeIterator : public std::iterator<std::forward_iterator_tag, const T> {
+    using WeakRangeCollection = std::unordered_map<std::string, std::weak_ptr<T>>;
+
+    template<typename T, typename Collection>
+    class BaseRangeIterator : public std::iterator<std::forward_iterator_tag, const T> {
+    public:
+        using Iterator = typename Collection::const_iterator;
+
+        BaseRangeIterator(Iterator it) : wrapped(it) {}
+        BaseRangeIterator(const BaseRangeIterator& other) : wrapped(other.wrapped) {}
+
+        bool operator==(const BaseRangeIterator &other) const {
+            return wrapped == other.wrapped;
+        }
+
+        bool operator!=(const BaseRangeIterator &other) const {
+            return wrapped != other.wrapped;
+        }
+
+        BaseRangeIterator& operator=(const BaseRangeIterator& other) {
+            wrapped = other.wrapped;
+            return *this;
+        }
+
+        BaseRangeIterator& operator++() {
+            wrapped++;
+            return *this;
+        }
+    protected:
+        Iterator wrapped;
+    };
+
+    template<typename T>
+    class RangeIterator : public BaseRangeIterator<T, RangeCollection<T>> {
+    using super = BaseRangeIterator<T, RangeCollection<T>>;
     using Iterator = typename RangeCollection<T>::const_iterator;
     public:
-        RangeIterator(Iterator it);
-        RangeIterator(const RangeIterator& other);
+        RangeIterator(Iterator it) : super(it) {}
+        RangeIterator(const super& other) : super(other) {}
 
-        const T& operator*() const;
-        bool operator==(const RangeIterator &other) const;
-        bool operator!=(const RangeIterator &other) const;
-        RangeIterator& operator=(const RangeIterator& cu);
-        RangeIterator& operator++();
-    private:
-        Iterator wrapped;
+        const T& operator*() const {
+            return *super::wrapped->second;
+        }
+    };
+
+    template<typename T>
+    class WeakRangeIterator : public BaseRangeIterator<T, WeakRangeCollection<T>> {
+    using super = BaseRangeIterator<T, WeakRangeCollection<T>>;
+    using Iterator = typename WeakRangeCollection<T>::const_iterator;
+    public:
+        WeakRangeIterator(Iterator it) : super(it) {}
+        WeakRangeIterator(const super& other) : super(other) {}
+
+        const T& operator*() const {
+            return *super::wrapped->second.lock();
+        }
     };
 
     template<typename T>
@@ -66,41 +108,24 @@ namespace Insight {
     };
 
     template<typename T>
-    RangeIterator<T>::RangeIterator(Iterator it)
-        : wrapped(it)
-    {}
-
-    template<typename T>
-    RangeIterator<T>::RangeIterator(const RangeIterator& other)
-        : wrapped(other.wrapped)
-    {}
-
-    template<typename T>
-    const T& RangeIterator<T>::operator*() const {
-        return *wrapped->second;
-    }
-
-    template<typename T>
-    bool RangeIterator<T>::operator==(const RangeIterator<T> &other) const {
-        return wrapped == other.wrapped;
-    }
-
-    template<typename T>
-    bool RangeIterator<T>::operator!=(const RangeIterator<T> &other) const {
-        return wrapped != other.wrapped;
-    }
-
-    template<typename T>
-    RangeIterator<T>& RangeIterator<T>::operator=(const RangeIterator<T> &other) {
-        wrapped = other.wrapped;
-        return *this;
-    }
-
-    template<typename T>
-    RangeIterator<T>& RangeIterator<T>::operator++() {
-        wrapped++;
-        return *this;
-    }
+    class WeakRange {
+    public:
+        WeakRange(const WeakRangeCollection<T>& collection) : c(collection) {};
+        WeakRangeIterator<T> cbegin() const {
+            return WeakRangeIterator<T>(c.cbegin());
+        }
+        WeakRangeIterator<T> cend() const {
+            return WeakRangeIterator<T>(c.cend());
+        }
+        WeakRangeIterator<T> begin() const {
+            return WeakRangeIterator<T>(c.cbegin());
+        }
+        WeakRangeIterator<T> end() const {
+            return WeakRangeIterator<T>(c.cend());
+        }
+    private:
+        const WeakRangeCollection<T>& c;
+    };
 
 }
 

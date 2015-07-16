@@ -24,8 +24,8 @@
 # include "insight/types"
 # include "insight/range"
 
-#define MIXIN(Name, Type)                                               \
-    class Type ## Container {                                           \
+#define MIXIN(Name, Decl, Type)                                         \
+    class Decl ## Container {                                           \
     public:                                                             \
         virtual const Range<Type> Name ## s() const = 0;                \
         virtual const Type& Name(std::string name) const = 0;           \
@@ -33,9 +33,9 @@
     };                                                                  \
                                                                         \
     template <typename T>                                               \
-    class Type ## ContainerBase : public T, virtual public Type ## Container {  \
+    class Decl ## ContainerBase : public T, virtual public Decl ## Container {  \
     public:                                                             \
-        Type ## ContainerBase() : T(), Name ## s_() {}                  \
+        Decl ## ContainerBase() : T(), Name ## s_() {}                  \
                                                                         \
         virtual const Range<Type> Name ## s() const override {          \
             return Range<Type>(Name ## s_);                             \
@@ -50,6 +50,34 @@
         }                                                               \
                                                                         \
         RangeCollection<Type> Name ## s_;                               \
+    }
+
+#define WEAK_MIXIN(Name, Decl, Type)                                    \
+    class Decl ## Container {                                           \
+    public:                                                             \
+        virtual const WeakRange<Type> Name ## s() const = 0;            \
+        virtual const Type& Name(std::string name) const = 0;           \
+        virtual void add_ ## Name(std::weak_ptr<Type> Name) = 0;        \
+    };                                                                  \
+                                                                        \
+    template <typename T>                                               \
+    class Decl ## ContainerBase : public T, virtual public Decl ## Container {  \
+    public:                                                             \
+        Decl ## ContainerBase() : T(), Name ## s_() {}                  \
+                                                                        \
+        virtual const WeakRange<Type> Name ## s() const override {      \
+            return WeakRange<Type>(Name ## s_);                         \
+        }                                                               \
+                                                                        \
+        virtual const Type& Name(std::string name) const override {     \
+            return *Name ## s_.at(name).lock();                         \
+        }                                                               \
+                                                                        \
+        virtual void add_ ## Name(std::weak_ptr<Type> Name) {           \
+            Name ## s_[Name.lock()->name()] = Name;                     \
+        }                                                               \
+                                                                        \
+        WeakRangeCollection<Type> Name ## s_;                           \
     }
 
 
@@ -122,12 +150,13 @@ namespace Insight {
         size_t size_;
     };
 
-    MIXIN(function, FunctionInfo);
-    MIXIN(method, MethodInfo);
-    MIXIN(field, FieldInfo);
-    MIXIN(variable, VariableInfo);
-    MIXIN(nested_namespace, NamespaceInfo);
-    MIXIN(type, TypeInfo);
+    MIXIN(function, FunctionInfo, FunctionInfo);
+    MIXIN(method, MethodInfo, MethodInfo);
+    MIXIN(field, FieldInfo, FieldInfo);
+    MIXIN(variable, VariableInfo, VariableInfo);
+    MIXIN(nested_namespace, NamespaceInfo, NamespaceInfo);
+    MIXIN(type, TypeInfo, TypeInfo);
+    WEAK_MIXIN(supertype, Supertype, TypeInfo);
 
     template <typename T>
     using ContainerBase =
@@ -145,7 +174,9 @@ namespace Insight {
                     VariableInfoContainerBase<
                             TypeInfoContainerBase<
                                     MethodInfoContainerBase<
-                                            FieldInfoContainerBase<T>
+                                            FieldInfoContainerBase<
+                                                    SupertypeContainerBase<T>
+                                            >
                                     >
                             >
                     >

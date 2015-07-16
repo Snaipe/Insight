@@ -296,6 +296,14 @@ namespace Insight {
 
                 structinfo->add_method(method);
             } break;
+            case DW_TAG_inheritance: {
+                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
+                if (!attr)
+                    break;
+
+                std::weak_ptr<TypeInfo> super_type(get_type(ctx, attr->as<Dwarf::Off>()));
+                structinfo->add_supertype(super_type);
+            } break;
             default: break;
         }
         return Dwarf::Die::TraversalResult::SKIP;
