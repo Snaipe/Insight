@@ -37,6 +37,8 @@ namespace Insight {
     public:
         virtual size_t size_of() const = 0;
         virtual Container& parent() const = 0;
+
+        inline bool operator==(const TypeInfo& rhs) const;
     };
 
     enum PrimitiveKind {
@@ -173,6 +175,8 @@ namespace Insight {
         virtual const VariableInfo& variable(std::string name) const = 0;
         virtual const Range<TypeInfo> types() const = 0;
         virtual const TypeInfo& type(std::string name) const = 0;
+
+        virtual bool operator==(const Container& other) const = 0;
     };
 
     class StructInfo : virtual public TypeInfo, virtual public Container {
@@ -183,6 +187,12 @@ namespace Insight {
         virtual const FieldInfo& field(std::string name) const = 0;
         virtual const WeakRange<TypeInfo> supertypes() const = 0;
         virtual const TypeInfo& supertype(std::string name) const = 0;
+
+        virtual bool operator==(const Container& other) const override {
+            if (const TypeInfo* o = dynamic_cast<const TypeInfo*>(&other))
+                return TypeInfo::operator==(*o);
+            return false;
+        }
     };
 
     class PointerTypeInfo : virtual public TypeInfo {
@@ -205,7 +215,21 @@ namespace Insight {
         virtual const Range<NamespaceInfo> nested_namespaces() const = 0;
         virtual const NamespaceInfo& nested_namespace(std::string name) const = 0;
         virtual Container& parent() const = 0;
+
+        virtual bool operator==(const Container& other) const override {
+            if (const NamespaceInfo* o = dynamic_cast<const NamespaceInfo*>(&other)) {
+                // stop recursing on the root namespace
+                if (name().length() == 0)
+                    return o->name().length() == 0;
+                return name() == o->name() && parent() == o->parent();
+            }
+            return false;
+        }
     };
+
+    inline bool TypeInfo::operator==(const TypeInfo& rhs) const {
+        return name() == rhs.name() && parent() == rhs.parent();
+    }
 
 }
 
