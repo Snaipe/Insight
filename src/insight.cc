@@ -431,6 +431,24 @@ namespace Insight {
                     }
                 }
             } break;
+            case DW_TAG_variable: {
+                const char *name = die.get_name();
+                if (!name)
+                    break;
+
+                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
+                std::unique_ptr<const Dwarf::Attribute> locattr = die.get_attribute(DW_AT_location);
+                if (!attr || !locattr)
+                    break;
+
+                size_t loc = locattr->as<Dwarf::Off>();
+                void *addr = reinterpret_cast<void*>(loc);
+
+                std::weak_ptr<TypeInfo> type = get_type(ctx, attr->as<Dwarf::Off>());
+                auto var = std::make_shared<VariableInfoImpl>(name, addr, type, *parent);
+
+                add_var_to_parent(ctx, var);
+            } break;
             default: break;
         }
         return Dwarf::Die::TraversalResult::SKIP;
