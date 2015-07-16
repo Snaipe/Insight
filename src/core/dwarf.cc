@@ -25,8 +25,8 @@
 #include <libdwarf++/die.hh>
 #include <libdwarf++/cu.hh>
 #include "insight/insight"
-#include "internal.hh"
-#include "mangle.hh"
+#include "data/internal.hh"
+#include "util/mangle.hh"
 
 namespace Insight {
 

@@ -8,8 +8,8 @@ struct test_struct {
 int main(int argc, const char *argv[]) {
     struct test_struct t = {24};
 
-    const insight_struct_info type = (const insight_struct_info) insight_type_of(test_struct);
-    const insight_field_info field = insight_field(type, "field");
+    insight_struct_info type = (insight_struct_info) type_of(struct test_struct);
+    insight_field_info field = insight_field(type, "field");
 
     printf("%d\n", t.field);
     int newdata = 42;

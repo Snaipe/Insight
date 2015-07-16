@@ -7,12 +7,12 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -std=c11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=c++14")
 
 set(SOURCE_FILES
-    src/insight.cc
-    src/types.cc
-    src/internal.hh
+    src/core/dwarf.cc
+    src/data/types.cc
+    src/data/internal.hh
     src/cbridge/bridge.cc
-    src/mangle.hh
-    src/mangle.cc
+    src/util/mangle.hh
+    src/util/mangle.cc
 )
 set(INTERFACE_FILES
     include/insight/types.h
