@@ -85,12 +85,12 @@ namespace Insight {
 
     class TypedInfo {
     public:
-        virtual const TypeInfo& type() const = 0;
+        virtual TypeInfo& type() const = 0;
     };
 
     class FieldInfo : virtual public TypedInfo, virtual public MemberInfo {
     public:
-        virtual const size_t offset() const = 0;
+        virtual size_t offset() const = 0;
 
         template<typename T, typename V>
         void set(T& instance, V value) const {
@@ -126,14 +126,14 @@ namespace Insight {
 
     class Callable {
     public:
-        virtual const TypeInfo& return_type() const = 0;
+        virtual TypeInfo& return_type() const = 0;
         virtual const Range<TypeInfo> parameter_types() const = 0;
-        virtual const void* address() const = 0;
+        virtual void* address() const = 0;
     };
 
     class MethodInfo : virtual public Callable, virtual public MemberInfo {
     public:
-        virtual const bool is_virtual() const = 0;
+        virtual bool is_virtual() const = 0;
         virtual size_t vtable_index() const = 0;
 
         template<typename R, typename T, typename ...Args>
@@ -144,7 +144,7 @@ namespace Insight {
                 FuncType* vtable = *reinterpret_cast<FuncType**>(&instance);
                 func = vtable[vtable_index()];
             } else {
-                const void* addr = address();
+                void* addr = address();
                 if (!addr)
                     throw std::runtime_error("No address for function " + name());
                 func = reinterpret_cast<FuncType>(addr);
@@ -159,7 +159,7 @@ namespace Insight {
         template<typename R, typename ...Args>
         R call(Args... args) const {
             using FuncType = R (*)(Args...);
-            const void* addr = address();
+            void* addr = address();
             if (!addr)
                 throw std::runtime_error("No address for function " + name());
             FuncType func = reinterpret_cast<FuncType>(addr);
@@ -170,11 +170,11 @@ namespace Insight {
     class Container : virtual public Named {
     public:
         virtual const Range<FunctionInfo> functions() const = 0;
-        virtual const FunctionInfo& function(std::string name) const = 0;
+        virtual FunctionInfo& function(std::string name) const = 0;
         virtual const Range<VariableInfo> variables() const = 0;
-        virtual const VariableInfo& variable(std::string name) const = 0;
+        virtual VariableInfo& variable(std::string name) const = 0;
         virtual const Range<TypeInfo> types() const = 0;
-        virtual const TypeInfo& type(std::string name) const = 0;
+        virtual TypeInfo& type(std::string name) const = 0;
 
         virtual bool operator==(const Container& other) const = 0;
     };
@@ -182,11 +182,11 @@ namespace Insight {
     class StructInfo : virtual public TypeInfo, virtual public Container {
     public:
         virtual const Range<MethodInfo> methods() const = 0;
-        virtual const MethodInfo& method(std::string name) const = 0;
+        virtual MethodInfo& method(std::string name) const = 0;
         virtual const Range<FieldInfo> fields() const = 0;
-        virtual const FieldInfo& field(std::string name) const = 0;
+        virtual FieldInfo& field(std::string name) const = 0;
         virtual const WeakRange<TypeInfo> supertypes() const = 0;
-        virtual const TypeInfo& supertype(std::string name) const = 0;
+        virtual TypeInfo& supertype(std::string name) const = 0;
 
         virtual bool operator==(const Container& other) const override {
             if (const TypeInfo* o = dynamic_cast<const TypeInfo*>(&other))
@@ -213,7 +213,7 @@ namespace Insight {
     class NamespaceInfo : virtual public Container {
     public:
         virtual const Range<NamespaceInfo> nested_namespaces() const = 0;
-        virtual const NamespaceInfo& nested_namespace(std::string name) const = 0;
+        virtual NamespaceInfo& nested_namespace(std::string name) const = 0;
         virtual Container& parent() const = 0;
 
         virtual bool operator==(const Container& other) const override {

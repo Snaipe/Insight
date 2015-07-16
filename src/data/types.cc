@@ -29,7 +29,7 @@ namespace Insight {
         , vtab_index_(0)
     {}
 
-    const bool MethodInfoImpl::is_virtual() const {
+    bool MethodInfoImpl::is_virtual() const {
         return virtual_;
     }
 
@@ -55,7 +55,7 @@ namespace Insight {
         , offset_(offset)
     {}
 
-    const size_t FieldInfoImpl::offset() const {
+    size_t FieldInfoImpl::offset() const {
         return offset_;
     }
 

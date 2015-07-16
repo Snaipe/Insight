@@ -28,7 +28,7 @@
     class Decl ## Container {                                           \
     public:                                                             \
         virtual const Range<Type> Name ## s() const = 0;                \
-        virtual const Type& Name(std::string name) const = 0;           \
+        virtual Type& Name(std::string name) const = 0;                 \
         virtual void add_ ## Name(std::shared_ptr<Type> Name) = 0;      \
     };                                                                  \
                                                                         \
@@ -41,7 +41,7 @@
             return Range<Type>(Name ## s_);                             \
         }                                                               \
                                                                         \
-        virtual const Type& Name(std::string name) const override {     \
+        virtual Type& Name(std::string name) const override {           \
             return *Name ## s_.at(name);                                \
         }                                                               \
                                                                         \
@@ -56,7 +56,7 @@
     class Decl ## Container {                                           \
     public:                                                             \
         virtual const WeakRange<Type> Name ## s() const = 0;            \
-        virtual const Type& Name(std::string name) const = 0;           \
+        virtual Type& Name(std::string name) const = 0;                 \
         virtual void add_ ## Name(std::weak_ptr<Type> Name) = 0;        \
     };                                                                  \
                                                                         \
@@ -69,7 +69,7 @@
             return WeakRange<Type>(Name ## s_);                         \
         }                                                               \
                                                                         \
-        virtual const Type& Name(std::string name) const override {     \
+        virtual Type& Name(std::string name) const override {           \
             return *Name ## s_.at(name).lock();                         \
         }                                                               \
                                                                         \
@@ -190,7 +190,7 @@ namespace Insight {
             , type_(type)
         {}
 
-        virtual const TypeInfo& type() const override {
+        virtual TypeInfo& type() const override {
             return *type_.lock();
         }
 
@@ -200,7 +200,7 @@ namespace Insight {
     class FieldInfoImpl : public TypedBase<FieldInfo> {
     public:
         FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type, Container& parent);
-        virtual const size_t offset() const override;
+        virtual size_t offset() const override;
 
         size_t offset_;
     };
@@ -223,11 +223,11 @@ namespace Insight {
                 , parameters_()
         {}
 
-        virtual const void* address() const override {
+        virtual void* address() const override {
             return address_;
         }
 
-        virtual const TypeInfo& return_type() const override {
+        virtual TypeInfo& return_type() const override {
             return *return_type_.lock();
         }
 
@@ -243,7 +243,7 @@ namespace Insight {
     class MethodInfoImpl : public CallableBase<MethodInfo> {
     public:
         MethodInfoImpl(const char *name, std::weak_ptr<TypeInfo> return_type, Container& parent);
-        virtual const bool is_virtual() const override;
+        virtual bool is_virtual() const override;
         virtual size_t vtable_index() const override;
 
         void set_vtable_index(size_t index);
