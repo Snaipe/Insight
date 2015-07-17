@@ -318,7 +318,7 @@ namespace Insight {
                 if (!super_type)
                     break;
 
-                structinfo->add_supertype(super_type);
+                structinfo->add_supertype(std::dynamic_pointer_cast<StructInfo>(super_type));
             } break;
             default: break;
         }

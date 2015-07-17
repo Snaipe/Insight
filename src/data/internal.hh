@@ -21,6 +21,7 @@
 # define INSIGHT_INTERNAL_HH
 
 # include <libdwarf++/dwarf.hh>
+# include <unordered_set>
 # include "insight/types"
 # include "insight/range"
 
@@ -152,7 +153,7 @@ namespace Insight {
     MIXIN(variable, VariableInfo, VariableInfo);
     MIXIN(nested_namespace, NamespaceInfo, NamespaceInfo);
     MIXIN(type, TypeInfo, TypeInfo);
-    WEAK_MIXIN(supertype, Supertype, TypeInfo);
+    WEAK_MIXIN(supertype, Supertype, StructInfo);
 
     template <typename T>
     using ContainerBase =
@@ -256,6 +257,12 @@ namespace Insight {
     class StructInfoImpl : public TypeBase<CompoundTypeBase<StructInfo>> {
     public:
         StructInfoImpl(std::string& name, size_t size);
+
+        virtual bool is_supertype(const TypeInfo &type) const override;
+        virtual bool is_ancestor(const TypeInfo &type) const override;
+        virtual void add_supertype(std::weak_ptr<StructInfo> supertype) override;
+
+        std::unordered_set<std::string> ancestors_;
     };
 
     class PrimitiveTypeInfoImpl : public TypeBase<PrimitiveTypeInfo> {

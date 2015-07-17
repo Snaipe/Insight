@@ -157,4 +157,21 @@ namespace Insight {
         type_ = type;
     }
 
+    bool StructInfoImpl::is_supertype(const TypeInfo &type) const {
+        return supertypes_.count(type.name()) > 0;
+    }
+
+    bool StructInfoImpl::is_ancestor(const TypeInfo &type) const {
+        if (auto* t = dynamic_cast<const StructInfoImpl*>(&type)) {
+            return t->ancestors_.count(name_) > 0;
+        }
+        return false;
+    }
+
+    void StructInfoImpl::add_supertype(std::weak_ptr<StructInfo> supertype) {
+        SupertypeContainerBase::add_supertype(supertype);
+        auto t = std::dynamic_pointer_cast<StructInfoImpl>(supertype.lock());
+        ancestors_.insert(t->name());
+        ancestors_.insert(t->ancestors_.begin(), t->ancestors_.end());
+    }
 }
