@@ -88,15 +88,15 @@ namespace Insight {
     std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
     std::unordered_map<size_t, std::shared_ptr<TypeInfo>> inferred_type_registry;
 
-    const TypeInfo& type_of_(void *dummy_addr) {
+    TypeInfo& type_of_(void *dummy_addr) {
         return *inferred_type_registry.at(reinterpret_cast<size_t>(dummy_addr));
     }
 
-    const TypeInfo& type_of_(std::string name) {
+    TypeInfo& type_of_(std::string name) {
         return *type_registry.at(name);
     }
 
-    const TypeInfo& type_of_(const std::type_info& info) {
+    TypeInfo& type_of_(const std::type_info& info) {
         return type_of_(demangle(std::string(info.name())));
     }
 
@@ -113,6 +113,7 @@ namespace Insight {
     }
 
     static std::shared_ptr<TypeInfo> get_type(BuildContext& ctx, Dwarf::Off offset);
+    static std::shared_ptr<TypeInfo> get_type_attr(BuildContext &ctx, Dwarf::Die &die);
     static std::shared_ptr<TypeInfo> build_struct_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent);
 
     static std::shared_ptr<TypeInfo> build_type(Dwarf::Die& die, BuildContext& ctx, bool register_parent) {
@@ -141,11 +142,13 @@ namespace Insight {
         Container* parent = get_parent(ctx);
 
         std::shared_ptr<TypeInfo> type;
-        const auto t = type_registry.find(die.get_name() ?: "");
+        std::string name = die.get_name() ?: "";
+
+        const auto t = type_registry.find(name);
         if (t != type_registry.end()) {
             type = t->second;
             if (register_parent) {
-                Child *child = dynamic_cast<Child *>(&*type);
+                MutableChild *child = dynamic_cast<MutableChild *>(&*type);
                 child->set_parent(parent);
             }
         } else {
@@ -204,10 +207,7 @@ namespace Insight {
                     std::shared_ptr<ConstTypeInfoImpl> t = std::make_shared<ConstTypeInfoImpl>();
                     ctx.types[die.get_offset()] = t;
 
-                    std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
-                    if (!attrtype)
-                        break;
-                    std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
+                    auto subtype = get_type_attr(ctx, die);
                     if (!subtype)
                         break;
 
@@ -218,13 +218,14 @@ namespace Insight {
                     type = t;
                 } break;
                 case DW_TAG_typedef: {
-                    std::shared_ptr<TypeDefInfoImpl> t = std::make_shared<TypeDefInfoImpl>(die.get_name());
+                    const char *name = die.get_name();
+                    if (!name)
+                        break;
+
+                    std::shared_ptr<TypeDefInfoImpl> t = std::make_shared<TypeDefInfoImpl>(name);
                     ctx.types[die.get_offset()] = t;
 
-                    std::unique_ptr<const Dwarf::Attribute> attrtype = die.get_attribute(DW_AT_type);
-                    if (!attrtype)
-                        break;
-                    std::shared_ptr<TypeInfo> subtype = get_type(ctx, attrtype->as<Dwarf::Off>());
+                    auto subtype = get_type_attr(ctx, die);
                     if (!subtype)
                         break;
 
@@ -245,6 +246,14 @@ namespace Insight {
         return type;
     }
 
+    static std::shared_ptr<TypeInfo> get_type(BuildContext& ctx, Dwarf::Die& die) {
+        auto it = ctx.types.find(die.get_offset());
+        if (it == ctx.types.end()) {
+            return build_type(die, ctx, false);
+        }
+        return it->second;
+    }
+
     static std::shared_ptr<TypeInfo> get_type(BuildContext& ctx, Dwarf::Off offset) {
         auto it = ctx.types.find(offset);
         if (it == ctx.types.end()) {
@@ -252,6 +261,15 @@ namespace Insight {
             return die ? build_type(*die, ctx, false) : nullptr;
         }
         return it->second;
+    }
+
+    static std::shared_ptr<TypeInfo> get_type_attr(BuildContext &ctx, Dwarf::Die &die) {
+        std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
+        if (!attr)
+            return nullptr;
+
+        auto target = attr->as_die();
+        return target ? get_type(ctx, *target) : nullptr;
     }
 
     static Dwarf::Die::TraversalResult handle_member(Dwarf::Die &die, void *data) {
@@ -264,23 +282,22 @@ namespace Insight {
                 size_t offset = get_offset(die);
                 if (offset == static_cast<size_t>(-1))
                     break;
-                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
-                if (!attr)
+
+                auto type = get_type_attr(ctx, die);
+                if (!type)
                     break;
 
-                std::weak_ptr<TypeInfo> weak(get_type(ctx, attr->as<Dwarf::Off>()));
-                std::shared_ptr<FieldInfo> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, weak, *structinfo);
+                std::shared_ptr<FieldInfo> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, type, *structinfo);
                 structinfo->add_field(finfo);
             } break;
             case DW_TAG_subprogram: {
                 if (!die.get_name()) // ignore unnamed methods
                     break;
 
-                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
-                if (!attr)
+                auto return_type = get_type_attr(ctx, die);
+                if (!return_type)
                     break;
 
-                std::weak_ptr<TypeInfo> return_type(get_type(ctx, attr->as<Dwarf::Off>()));
                 std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type, *structinfo);
 
                 std::unique_ptr<const Dwarf::Attribute> vattr = die.get_attribute(DW_AT_virtuality);
@@ -297,11 +314,10 @@ namespace Insight {
                 structinfo->add_method(method);
             } break;
             case DW_TAG_inheritance: {
-                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
-                if (!attr)
+                auto super_type = get_type_attr(ctx, die);
+                if (!super_type)
                     break;
 
-                std::weak_ptr<TypeInfo> super_type(get_type(ctx, attr->as<Dwarf::Off>()));
                 structinfo->add_supertype(super_type);
             } break;
             default: break;
@@ -342,8 +358,8 @@ namespace Insight {
                 if (std::string(name) != "insight_typeof_dummy")
                     break;
 
-                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
-                if (!attr)
+                auto type = get_type_attr(ctx, die);
+                if (!type)
                     break;
 
                 std::unique_ptr<const Dwarf::Attribute> locattr = die.get_attribute(DW_AT_location);
@@ -352,7 +368,6 @@ namespace Insight {
 
                 size_t loc = locattr->as<Dwarf::Off>();
 
-                auto type = get_type(ctx, attr->as<Dwarf::Off>());
                 auto inferred_type = std::dynamic_pointer_cast<PointerTypeInfoImpl>(type);
                 inferred_type_registry[loc] = inferred_type->type_.lock();
             }
@@ -399,11 +414,10 @@ namespace Insight {
                     if (!die.get_name()) // ignore unnamed functions
                         break;
 
-                    std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
-                    if (!attr)
+                    auto return_type = get_type_attr(ctx, die);
+                    if (!return_type)
                         break;
 
-                    std::weak_ptr<TypeInfo> return_type(get_type(ctx, attr->as<Dwarf::Off>()));
                     std::shared_ptr<FunctionInfoImpl> func = std::make_shared<FunctionInfoImpl>(die.get_name(), return_type, *parent);
 
                     add_func_to_parent(ctx, func);
@@ -433,18 +447,17 @@ namespace Insight {
             } break;
             case DW_TAG_variable: {
                 const char *name = die.get_name();
-                if (!name)
+                auto locattr = die.get_attribute(DW_AT_location);
+                if (!name || !locattr)
                     break;
 
-                std::unique_ptr<const Dwarf::Attribute> attr = die.get_attribute(DW_AT_type);
-                std::unique_ptr<const Dwarf::Attribute> locattr = die.get_attribute(DW_AT_location);
-                if (!attr || !locattr)
+                auto type = get_type_attr(ctx, die);
+                if (!type)
                     break;
 
                 size_t loc = locattr->as<Dwarf::Off>();
                 void *addr = reinterpret_cast<void*>(loc);
 
-                std::weak_ptr<TypeInfo> type = get_type(ctx, attr->as<Dwarf::Off>());
                 auto var = std::make_shared<VariableInfoImpl>(name, addr, type, *parent);
 
                 add_var_to_parent(ctx, var);
@@ -458,10 +471,10 @@ namespace Insight {
         std::shared_ptr<const Dwarf::Debug> dbg = Dwarf::Debug::self();
         type_registry["void"] = VOID_TYPE;
 
-        for (const Dwarf::CompilationUnit &cu : *dbg) {
-            BuildContext ctx(*dbg);
-            ctx.namespace_stack.push(&ROOT_NAMESPACE);
+        BuildContext ctx(*dbg);
+        ctx.namespace_stack.push(&ROOT_NAMESPACE);
 
+        for (const Dwarf::CompilationUnit &cu : *dbg) {
             cu.get_die()->traverse_headless(Insight::build_metadata, &ctx);
         }
 

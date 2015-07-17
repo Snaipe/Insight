@@ -21,7 +21,9 @@
 # define INSIGHT_TYPES_HH
 
 # include <string>
+# include <cassert>
 # include "range"
+# include "insight"
 
 namespace Insight {
 
@@ -80,10 +82,19 @@ namespace Insight {
         virtual PrimitiveKind kind() const = 0;
     };
 
-    class MemberInfo : virtual public Named {
+    class StructInfo;
+
+    class Child {
+    public:
+        virtual Container& parent() const = 0;
     };
 
-    class TypedInfo {
+    class MemberInfo : virtual public Named, virtual public Child {
+    public:
+        virtual StructInfo& declaring_type() const;
+    };
+
+    class TypedInfo : virtual public Child {
     public:
         virtual TypeInfo& type() const = 0;
     };
@@ -92,14 +103,18 @@ namespace Insight {
     public:
         virtual size_t offset() const = 0;
 
-        template<typename T, typename V>
+        template<typename V, typename T>
         void set(T& instance, V value) const {
+            assert(type_of(T) == declaring_type());
+            assert(type_of(V) == type());
             V* target = reinterpret_cast<V*>(reinterpret_cast<char*>(&instance) + offset());
             *target = value;
         }
 
-        template<typename T, typename V>
+        template<typename V, typename T>
         V& get(T& instance) const {
+            assert(type_of(T) == declaring_type());
+            assert(type_of(V) == type());
             return *reinterpret_cast<V*>(reinterpret_cast<char*>(&instance) + offset());
         }
     };
@@ -110,12 +125,14 @@ namespace Insight {
 
         template<typename V>
         void set(V value) const {
+            assert(type_of(V) == type());
             V* target = reinterpret_cast<V*>(address());
             *target = value;
         }
 
         template<typename V>
         V& get() const {
+            assert(type_of(V) == type());
             return *reinterpret_cast<V*>(address());
         }
     };
@@ -131,6 +148,16 @@ namespace Insight {
         virtual void* address() const = 0;
     };
 
+#ifndef NDEBUG
+    inline void insight_assert_valid_types(Range<TypeInfo> types, std::initializer_list<TypeInfo*> list) {
+        auto expected = types.begin();
+        auto actual = list.begin();
+        for (; expected != types.end() && actual != list.end(); ++expected, ++actual) {
+            assert(*expected == **actual);
+        }
+    }
+#endif
+
     class MethodInfo : virtual public Callable, virtual public MemberInfo {
     public:
         virtual bool is_virtual() const = 0;
@@ -138,6 +165,11 @@ namespace Insight {
 
         template<typename R, typename T, typename ...Args>
         R call(T& instance, Args... args) const {
+            assert(type_of(T) == declaring_type());
+#ifndef NDEBUG
+            insight_assert_valid_types(parameter_types(), { (&type_of(Args))... });
+#endif
+
             using FuncType = R (*)(T*, Args...);
             FuncType func;
             if (is_virtual()) {
@@ -158,6 +190,10 @@ namespace Insight {
 
         template<typename R, typename ...Args>
         R call(Args... args) const {
+#ifndef NDEBUG
+            insight_assert_valid_types(parameter_types(), { (type_of(Args))... });
+#endif
+
             using FuncType = R (*)(Args...);
             void* addr = address();
             if (!addr)
@@ -167,7 +203,7 @@ namespace Insight {
         }
     };
 
-    class Container : virtual public Named {
+    class Container : virtual public Named, virtual public Child {
     public:
         virtual const Range<FunctionInfo> functions() const = 0;
         virtual FunctionInfo& function(std::string name) const = 0;
@@ -214,7 +250,6 @@ namespace Insight {
     public:
         virtual const Range<NamespaceInfo> nested_namespaces() const = 0;
         virtual NamespaceInfo& nested_namespace(std::string name) const = 0;
-        virtual Container& parent() const = 0;
 
         virtual bool operator==(const Container& other) const override {
             if (const NamespaceInfo* o = dynamic_cast<const NamespaceInfo*>(&other)) {
@@ -231,6 +266,9 @@ namespace Insight {
         return name() == rhs.name() && parent() == rhs.parent();
     }
 
+    inline StructInfo& MemberInfo::declaring_type() const {
+        return dynamic_cast<StructInfo&>(parent());
+    }
 }
 
 #endif /* !INSIGHT_TYPES_HH */

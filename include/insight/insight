@@ -21,33 +21,43 @@
 # define INSIGHT_INSIGHT_HH
 
 # include <memory>
-# include "types"
 
 namespace Insight {
 
-    const TypeInfo& type_of_(void *dummy_addr);
-    const TypeInfo& type_of_(std::string name);
-    const TypeInfo& type_of_(const std::type_info& info);
+    class TypeInfo;
+    class NamespaceInfo;
+
+    TypeInfo& type_of_(void *dummy_addr);
+    TypeInfo& type_of_(std::string name);
+    TypeInfo& type_of_(const std::type_info& info);
 
     NamespaceInfo& root_namespace();
 
 };
 
-// TODO: replace this in namespace Insight
 template<typename T>
-const Insight::TypeInfo& type_of_() {
+Insight::TypeInfo& insight_type_of__() {
     static T *insight_typeof_dummy [[gnu::used]] = nullptr;
     return Insight::type_of_(&insight_typeof_dummy);
 }
 
+namespace Insight {
+    template<typename T>
+    TypeInfo& type_of_() {
+        return insight_type_of__<T>();
+    }
+}
+
 # ifdef __GNUC__
-#  define insight_type_of(Thing) (type_of_<__typeof__(Thing)>())
+#  define insight_type_of(Thing) (insight_type_of__<__typeof__(Thing)>())
 # else
-#  define insight_type_of(Thing) (type_of_<Thing>())
+#  define insight_type_of(Thing) (insight_type_of__<Thing>())
 # endif
 
 # ifndef type_of
 #  define type_of insight_type_of
 # endif
+
+# include "types"
 
 #endif /* !INSIGHT_INSIGHT_HH */

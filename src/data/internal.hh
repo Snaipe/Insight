@@ -45,7 +45,7 @@
             return *Name ## s_.at(name);                                \
         }                                                               \
                                                                         \
-        virtual void add_ ## Name(std::shared_ptr<Type> Name) {         \
+        virtual void add_ ## Name(std::shared_ptr<Type> Name) override { \
             Name ## s_[Name->name()] = Name;                            \
         }                                                               \
                                                                         \
@@ -73,7 +73,7 @@
             return *Name ## s_.at(name).lock();                         \
         }                                                               \
                                                                         \
-        virtual void add_ ## Name(std::weak_ptr<Type> Name) {           \
+        virtual void add_ ## Name(std::weak_ptr<Type> Name) override {  \
             Name ## s_[Name.lock()->name()] = Name;                     \
         }                                                               \
                                                                         \
@@ -98,14 +98,13 @@ namespace Insight {
         std::string name_;
     };
 
-    class Child {
+    class MutableChild : virtual public Child {
     public:
-        virtual Container& parent() const = 0;
         virtual void set_parent(Container* parent) = 0;
     };
 
     template <class T>
-    class ChildBase : public NameBase<T>, virtual public Child {
+    class ChildBase : public NameBase<T>, virtual public MutableChild {
     public:
         ChildBase() : NameBase<T>(), parent_(nullptr) {}
         ChildBase(Container& parent) : NameBase<T>(), parent_(&parent) {}
@@ -141,11 +140,8 @@ namespace Insight {
         };
 
         virtual void *allocate() const {
-            void* ptr = ::operator new(size_of());
-            initialize(ptr);
+            return ::operator new(size_of());
         }
-
-        virtual void initialize(void *ptr) const {}
 
         size_t size_;
     };
