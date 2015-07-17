@@ -101,7 +101,7 @@ TEST(Typeof, Expression) {
     EXPECT_EQ(type_of(1.l), type_of(long double));
 
     EXPECT_EQ(type_of('1'), type_of(char));
-#if __cplusplus > 201701L // placeholder test for C++17 new literals
+#if __cplusplus >= 201701L // placeholder test for C++17 new literals
     EXPECT_EQ(type_of(u8'1'), type_of(char));
     EXPECT_EQ(type_of(u8'∀'), type_of(int));
 #endif
@@ -111,7 +111,7 @@ TEST(Typeof, Expression) {
     EXPECT_EQ(type_of('ABCD'), type_of(int));
 
     EXPECT_EQ(type_of(true), type_of(bool));
-#if __cplusplus > 201103L
+#if __cplusplus >= 201103L
     EXPECT_EQ(type_of(nullptr), type_of(nullptr_t));
     EXPECT_EQ(sizeof(void*), type_of(nullptr_t).size_of());
 #endif
