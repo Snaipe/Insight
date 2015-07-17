@@ -100,5 +100,21 @@ TEST(Typeof, Expression) {
     EXPECT_EQ(type_of(1.), type_of(double));
     EXPECT_EQ(type_of(1.l), type_of(long double));
 
+    EXPECT_EQ(type_of('1'), type_of(char));
+#if __cplusplus > 201701L // placeholder test for C++17 new literals
+    EXPECT_EQ(type_of(u8'1'), type_of(char));
+    EXPECT_EQ(type_of(u8'∀'), type_of(int));
+#endif
+    EXPECT_EQ(type_of(u'1'), type_of(char16_t));
+    EXPECT_EQ(type_of(U'1'), type_of(char32_t));
+    EXPECT_EQ(type_of(L'1'), type_of(wchar_t));
+    EXPECT_EQ(type_of('ABCD'), type_of(int));
+
+    EXPECT_EQ(type_of(true), type_of(bool));
+#if __cplusplus > 201103L
+    EXPECT_EQ(type_of(nullptr), type_of(nullptr_t));
+    EXPECT_EQ(sizeof(void*), type_of(nullptr_t).size_of());
+#endif
+
     EXPECT_EQ(type_of(Foo(42)), type_of(Foo));
 }

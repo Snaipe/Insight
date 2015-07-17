@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project(Insight_tests)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g3 -std=c11")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -g3 -std=c++14")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-multichar -g3 -std=c11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-multichar -g3 -std=c++14")
 include_directories(../include)
 
 add_executable(test_insight test.cc virtual.cc typeof.cc)
