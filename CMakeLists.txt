@@ -23,6 +23,7 @@ set(INTERFACE_FILES
 )
 
 add_subdirectory(samples)
+add_subdirectory(tests)
 
 include_directories(include src)
 add_library(insight SHARED ${SOURCE_FILES} ${INTERFACE_FILES})
