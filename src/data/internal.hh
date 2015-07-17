@@ -265,6 +265,11 @@ namespace Insight {
         std::unordered_set<std::string> ancestors_;
     };
 
+    class UnspecifiedTypeInfoImpl : public TypeBase<UnspecifiedTypeInfo> {
+    public:
+        UnspecifiedTypeInfoImpl(const char* name);
+    };
+
     class PrimitiveTypeInfoImpl : public TypeBase<PrimitiveTypeInfo> {
     public:
         PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind, Container& parent);

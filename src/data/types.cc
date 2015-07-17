@@ -174,4 +174,8 @@ namespace Insight {
         ancestors_.insert(t->name());
         ancestors_.insert(t->ancestors_.begin(), t->ancestors_.end());
     }
+
+    UnspecifiedTypeInfoImpl::UnspecifiedTypeInfoImpl(const char *name)
+        : TypeBase(name, 0)
+    {}
 }

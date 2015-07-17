@@ -172,6 +172,15 @@ namespace Insight {
                     ctx.types[die.get_offset()] = t;
                     type = t;
                 } break;
+                case DW_TAG_unspecified_type: {
+                    auto t = std::make_shared<UnspecifiedTypeInfoImpl>(die.get_name());
+
+                    // C++11 requires sizeof(nullptr_t) == sizeof(void*)
+                    if (name == "decltype(nullptr)")
+                        t->size_ = sizeof(void*);
+
+                    type = t;
+                } break;
                 case DW_TAG_class_type: {
                     type = build_struct_type(die, ctx, register_parent);
                 } break;
@@ -398,6 +407,7 @@ namespace Insight {
                 die.traverse_headless(build_metadata, data);
                 ctx.namespace_stack.pop();
             } return Dwarf::Die::TraversalResult::SKIP;
+            case DW_TAG_unspecified_type:
             case DW_TAG_const_type:
             case DW_TAG_base_type:
             case DW_TAG_class_type:

@@ -53,6 +53,13 @@ namespace Insight {
         inline virtual bool operator==(const TypeInfo& rhs) const;
     };
 
+    class UnspecifiedTypeInfo : virtual public TypeInfo {
+    public:
+        virtual bool is_compatible(const TypeInfo& type) const {
+            return *this == type;
+        };
+    };
+
     enum PrimitiveKind {
         UNKNOWN = 0,
 
