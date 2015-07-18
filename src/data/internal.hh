@@ -89,13 +89,22 @@ namespace Insight {
     template <class T>
     class NameBase : public T {
     public:
-        NameBase() : T(), name_("") {}
-        NameBase(const std::string& name) : name_(name) {}
-        NameBase(std::string&& name) : name_(name) {}
+        NameBase() : T(), fullname_(""), name_("") {}
+        NameBase(const std::string& name) : fullname_(""), name_(name) {}
+        NameBase(std::string&& name) : fullname_(""), name_(name) {}
+        NameBase(const std::string& parent, const std::string& name) : fullname_(parent + "::" + name), name_(name) {}
         virtual const std::string& name() const override {
             return name_;
         }
+        virtual const std::string& fullname() const override {
+            return fullname_;
+        }
 
+        void set_fullname(const std::string& parent, const std::string& name) {
+            fullname_ = parent + "::" + name;
+        }
+
+        std::string fullname_;
         std::string name_;
     };
 
@@ -111,8 +120,8 @@ namespace Insight {
         ChildBase(Container& parent) : NameBase<T>(), parent_(&parent) {}
         ChildBase(const std::string &name) : NameBase<T>(name), parent_(nullptr) {}
         ChildBase(std::string&& name) : NameBase<T>(name), parent_(nullptr) {}
-        ChildBase(const std::string &name, Container& parent) : NameBase<T>(name), parent_(&parent) {}
-        ChildBase(std::string&& name, Container& parent) : NameBase<T>(name), parent_(&parent) {}
+        ChildBase(const std::string &name, Container& parent) : NameBase<T>(parent.fullname(), name), parent_(&parent) {}
+        ChildBase(std::string&& name, Container& parent) : NameBase<T>(parent.fullname(), name), parent_(&parent) {}
 
         virtual Container& parent() const override {
             return *parent_;
@@ -120,6 +129,7 @@ namespace Insight {
 
         virtual void set_parent(Container* parent) override {
             parent_ = parent;
+            NameBase<T>::set_fullname(parent->fullname(), this->name());
         }
 
         Container* parent_;
@@ -316,6 +326,8 @@ namespace Insight {
     public:
         NamespaceInfoImpl(const char* name);
         NamespaceInfoImpl(const char* name, Container& parent);
+
+        virtual Container& parent() const override;
     };
 }
 

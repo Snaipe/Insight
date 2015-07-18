@@ -82,8 +82,12 @@ namespace Insight {
     {}
 
     NamespaceInfoImpl::NamespaceInfoImpl(const char* name)
-            : ChildBase(std::string(name), *this)
+        : ChildBase(std::string(name))
     {}
+
+    Container& NamespaceInfoImpl::parent() const {
+        return const_cast<NamespaceInfoImpl&>(*this);
+    }
 
     // PrimitiveTypeInfo
 
