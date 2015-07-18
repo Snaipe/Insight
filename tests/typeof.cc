@@ -3,20 +3,15 @@
 
 using namespace Insight;
 
-template <typename T, typename Q>
-T& type_as() {
-    return dynamic_cast<T&>(type_of(Q));
-}
-
 #define TEST_PRIMITIVE_TYPE(T, Kind) \
     do { \
-        PrimitiveTypeInfo& type = type_as<PrimitiveTypeInfo, T>(); \
+        PrimitiveTypeInfo& type = type_of(T); \
         EXPECT_EQ(sizeof(T), type.size_of()); \
         EXPECT_EQ(Kind, type.kind()); \
     } while (0)
 
 TEST(Typeof, Pointer) {
-    PointerTypeInfo& type = type_as<PointerTypeInfo, void*>();
+    PointerTypeInfo& type = type_of(void*);
     EXPECT_EQ(type.pointed_type(), type_of(void));
 
     EXPECT_EQ(type_of(void *).size_of(), type_of(int *).size_of());
@@ -43,7 +38,7 @@ TEST(Typeof, Primitive) {
     TEST_PRIMITIVE_TYPE(long double _Complex, PrimitiveKind::LONG_DOUBLE_COMPLEX);
 
     // Test void separately since sizeof(void) is undefined
-    PrimitiveTypeInfo& voidtype = type_as<PrimitiveTypeInfo, void>();
+    PrimitiveTypeInfo& voidtype = type_of(void);
     EXPECT_EQ(0, voidtype.size_of());
     EXPECT_EQ(PrimitiveKind::VOID, voidtype.kind());
 }
