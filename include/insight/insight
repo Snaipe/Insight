@@ -21,11 +21,16 @@
 # define INSIGHT_INSIGHT_HH
 
 # include <memory>
+# include <type_traits>
 
 namespace Insight {
 
     class TypeInfo;
     class NamespaceInfo;
+    class PointerTypeInfo;
+    class PrimitiveTypeInfo;
+    class StructInfo;
+    class ConstTypeInfo;
 
     TypeInfo& type_of_(void *dummy_addr);
     TypeInfo& type_of_(std::string name);
@@ -36,22 +41,58 @@ namespace Insight {
 };
 
 template<typename T>
-Insight::TypeInfo& insight_type_of__() {
+static Insight::TypeInfo& insight_type_of_impl__() {
     static T *insight_typeof_dummy [[gnu::used]] = nullptr;
     return Insight::type_of_(&insight_typeof_dummy);
 }
 
-namespace Insight {
-    template<typename T>
-    TypeInfo& type_of_() {
-        return insight_type_of__<T>();
+template<typename T, typename E = void>
+struct insight_type_of__ {
+    static Insight::TypeInfo& call() {
+        return insight_type_of_impl__<T>();
     }
-}
+};
+
+template<typename T>
+struct insight_type_of__<T, typename std::enable_if<std::is_class<T>::value && !std::is_const<T>::value>::type> {
+    static Insight::StructInfo& call() {
+        return dynamic_cast<Insight::StructInfo&>(insight_type_of_impl__<T>());
+    }
+};
+
+template<class T>
+struct is_primitive : std::integral_constant<bool,
+        !std::is_const<T>::value &&
+            (std::is_integral<T>::value ||
+             std::is_floating_point<T>::value ||
+             std::is_void<T>::value ||
+             std::is_same<T, bool>::value)> {};
+
+template<typename T>
+struct insight_type_of__<T, typename std::enable_if<is_primitive<T>::value>::type> {
+    static Insight::PrimitiveTypeInfo& call() {
+        return dynamic_cast<Insight::PrimitiveTypeInfo&>(insight_type_of_impl__<T>());
+    }
+};
+
+template<typename T>
+struct insight_type_of__<T, typename std::enable_if<std::is_pointer<T>::value && !std::is_const<T>::value>::type> {
+    static Insight::PointerTypeInfo& call() {
+        return dynamic_cast<Insight::PointerTypeInfo&>(insight_type_of_impl__<T>());
+    }
+};
+
+template<typename T>
+struct insight_type_of__<T, typename std::enable_if<std::is_const<T>::value>::type> {
+    static Insight::ConstTypeInfo& call() {
+        return dynamic_cast<Insight::ConstTypeInfo&>(insight_type_of_impl__<T>());
+    }
+};
 
 # ifdef __GNUC__
-#  define insight_type_of(Thing) (insight_type_of__<__typeof__(Thing)>())
+#  define insight_type_of(Thing) (insight_type_of__<__typeof__(Thing)>::call())
 # else
-#  define insight_type_of(Thing) (insight_type_of__<Thing>())
+#  define insight_type_of(Thing) (insight_type_of__<Thing>::call())
 # endif
 
 # ifndef type_of
