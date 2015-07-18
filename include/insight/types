@@ -24,6 +24,7 @@
 # include <cassert>
 # include "range"
 # include "insight"
+# include "compare"
 
 namespace Insight {
 
@@ -42,8 +43,6 @@ namespace Insight {
         virtual Container& parent() const = 0;
         virtual bool is_compatible(const TypeInfo& type) const = 0;
     };
-
-    inline bool operator==(const TypeInfo& lhs, const TypeInfo& rhs);
 
     class UnspecifiedTypeInfo : virtual public TypeInfo {
     public:
@@ -232,8 +231,6 @@ namespace Insight {
         virtual TypeInfo& type(std::string name) const = 0;
     };
 
-    inline bool operator==(const Container& lhs, const Container& rhs);
-
     class StructInfo : virtual public TypeInfo, virtual public Container {
     public:
         virtual const Range<MethodInfo> methods() const = 0;
@@ -307,59 +304,13 @@ namespace Insight {
         virtual NamespaceInfo& nested_namespace(std::string name) const = 0;
     };
 
-    inline bool operator==(const Container& lhs, const Container& rhs) {
-        if (&lhs == &rhs)
-            return true;
-
-        if (const NamespaceInfo* o = dynamic_cast<const NamespaceInfo*>(&lhs)) {
-            return *o == rhs;
-        } else if (const StructInfo* o = dynamic_cast<const StructInfo*>(&lhs)) {
-            return *o == rhs;
-        }
-        return false;
-    }
-
-    inline bool operator!=(const Container& lhs, const Container& rhs) {
-        return !(lhs == rhs);
-    }
-
-    inline bool operator==(const TypeInfo& lhs, const TypeInfo& rhs) {
-        if (&lhs == &rhs)
-            return true;
-
-        return lhs.name() == rhs.name() && lhs.parent() == rhs.parent();
-    }
-
-    inline bool operator!=(const TypeInfo& lhs, const TypeInfo& rhs) {
-        return !(lhs == rhs);
-    }
-
     inline StructInfo& MemberInfo::declaring_type() const {
         return dynamic_cast<StructInfo&>(parent());
     }
 
-    inline bool operator==(const NamespaceInfo& lhs, const Container& rhs) {
-        if (&lhs == &rhs)
-            return true;
-
-        if (const NamespaceInfo* o = dynamic_cast<const NamespaceInfo*>(&rhs)) {
-            // stop recursing on the root namespace
-            if (lhs.name().length() == 0)
-                return o->name().length() == 0;
-            return lhs.name() == o->name() && lhs.parent() == o->parent();
-        }
-        return false;
-    }
-
-    inline bool operator==(const StructInfo& lhs, const Container& rhs) {
-        if (&lhs == &rhs)
-            return true;
-
-        if (const TypeInfo* o = dynamic_cast<const TypeInfo*>(&rhs))
-            return lhs == *o;
-        return false;
-    }
-
 }
+
+# include "compare.hxx"
+# include "stream.hxx"
 
 #endif /* !INSIGHT_TYPES_HH */

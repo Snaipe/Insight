@@ -1,0 +1,18 @@
+#ifndef INSIGHT_COMPARE_HH
+# define INSIGHT_COMPARE_HH
+
+namespace Insight {
+    class TypeInfo;
+    class NamespaceInfo;
+    class StructInfo;
+    class Container;
+
+    bool operator==(const NamespaceInfo& lhs, const Container& rhs);
+    bool operator==(const StructInfo& lhs, const Container& rhs);
+    bool operator!=(const TypeInfo& lhs, const TypeInfo& rhs);
+    bool operator==(const TypeInfo& lhs, const TypeInfo& rhs);
+    bool operator!=(const Container& lhs, const Container& rhs);
+    bool operator==(const Container& lhs, const Container& rhs);
+}
+
+#endif /* !INSIGHT_COMPARE_HH */

@@ -20,6 +20,9 @@ set(INTERFACE_FILES
     include/insight/types
     include/insight/insight
     include/insight/range
+    include/insight/compare
+    include/insight/compare.hxx
+    include/insight/stream.hxx
 )
 
 add_subdirectory(samples)
