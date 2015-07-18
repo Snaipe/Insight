@@ -76,9 +76,9 @@ TEST(Typeof, Variants) {
     EXPECT_EQ(type_of(long _Complex double), type_of(_Complex long double));
 }
 
-class Foo {
+class TypeofTest {
 public:
-    Foo(int n) : n_(n) {}
+    TypeofTest(int n) : n_(n) {}
 
     int n_;
 };
@@ -111,5 +111,5 @@ TEST(Typeof, Expression) {
     EXPECT_EQ(sizeof(void*), type_of(nullptr_t).size_of());
 #endif
 
-    EXPECT_EQ(type_of(Foo(42)), type_of(Foo));
+    EXPECT_EQ(type_of(TypeofTest(42)), type_of(TypeofTest));
 }
