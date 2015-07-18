@@ -5,7 +5,7 @@ struct test_struct {
     int field;
 };
 
-int main(int argc, const char *argv[]) {
+int main(void) {
     struct test_struct t = {24};
 
     insight_struct_info type = (insight_struct_info) type_of(struct test_struct);

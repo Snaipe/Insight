@@ -17,21 +17,23 @@ int TestClass::get_field() {
     return field;
 }
 
-int main(int argc, const char *argv[]) {
+int main(void) {
     TestClass instance(24);
 
-    std::cout << type_of(42 * 3. + 2).name() << std::endl;
+    Insight::StructInfo& type = type_of(TestClass);
 
-    const Insight::TypeInfo& type = type_of(instance);
-    if (auto* clazz = dynamic_cast<const Insight::StructInfo*>(&type)) {
-        // access and set the field
-        std::cout << "Before: field = " << instance.get_field() << std::endl;
-        clazz->field("field").set(instance, 42);
-        std::cout << "After: field = " << instance.get_field() << std::endl;
+    // access and set the field
+    std::cout << "Before: field = " << instance.get_field() << std::endl;
+    type.field("field").set(instance, 42);
+    std::cout << "After: field = " << instance.get_field() << std::endl;
 
-        // retrieve and call a method
-        std::cout << "get_field() -> " << clazz->method("get_field").call<int>(instance) << std::endl;
-    }
+    // alternative way
+    int& field = type.field("field").get<int>(instance);
+    std::cout << "Field reference access: field = " << field << std::endl;
+    field = 55;
+
+    // retrieve and call a method
+    std::cout << "get_field() -> " << type.method("get_field").call<int>(instance) << std::endl;
 
     return 0;
 }
