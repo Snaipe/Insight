@@ -1,4 +1,4 @@
-# Insight
+# <img src="doc/insight-title.png" height="96" alt="Insight Logo" />
 
 A reflection framework for C/C++
 
