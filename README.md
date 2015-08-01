@@ -55,5 +55,9 @@ You need to observe the following rules for pull requests:
 
 By submitting a pull request you accept to license your code under the Lesser GNU Public License version 3.
 
+## Credits
+
+Logo done by [Greehm](http://www.cargocollective.com/pbouigue)
+
 [libdwarf++]: https://github.com/Snaipe/libdwarfplusplus
 [samples]: ./samples/
