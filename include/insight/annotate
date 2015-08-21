@@ -31,9 +31,8 @@
 
 #  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
 #  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
-#  define insight_annotate__(Line, ...) insight_annotate_decl(Line, __VA_ARGS__) = {    \
-        INSIGHT_ANNOTATION_ADD_PREFIX(insight_annotation_ ## Line, __VA_ARGS__)         \
-    };
+#  define insight_annotate__(Line, ...) insight_annotate_decl(Line, __VA_ARGS__) = \
+        INSIGHT_ANNOTATION_CREATE_OBJ(__VA_ARGS__);
 # else
 #  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
 #  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
