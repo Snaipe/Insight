@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <memory>
 #include <stack>
+#include <boost/variant.hpp>
 #include <libdwarf++/dwarf.hh>
 #include <libdwarf++/die.hh>
 #include <libdwarf++/cu.hh>
@@ -28,13 +29,24 @@
 #include "data/internal.hh"
 #include "util/mangle.hh"
 
+#define STRUCT_OR_UNION_VISITOR(type, kind, operation) \
+    struct add_ ## kind : public boost::static_visitor<void> { \
+        void operator()(std::shared_ptr<StructInfoImpl>& info) const { operation; } \
+        void operator()(std::shared_ptr<UnionInfoImpl>& info) const { operation; } \
+        add_ ## kind (std::shared_ptr<type>& t) : ptr(t) {} \
+        std::shared_ptr<type>& ptr; \
+    }
+
 namespace Insight {
+
+    using StructOrUnion = boost::variant<std::shared_ptr<StructInfoImpl>, std::shared_ptr<UnionInfoImpl>>;
+    using StructOrUnionMethod = boost::variant<std::shared_ptr<MethodInfoImpl>, std::shared_ptr<UnionMethodInfoImpl>>;
 
     template<typename T>
     using OffsetMap = std::unordered_map<size_t, T>;
 
     using TypeOffsetMap = OffsetMap<std::shared_ptr<TypeInfo>>;
-    using MethodOffsetMap = OffsetMap<std::shared_ptr<MethodInfoImpl>>;
+    using MethodOffsetMap = OffsetMap<StructOrUnionMethod>;
 
     NamespaceInfoImpl ROOT_NAMESPACE("");
 
@@ -47,7 +59,7 @@ namespace Insight {
             , methods()
             , anonymous_count(0)
             , namespace_stack()
-            , struct_stack()
+            , type_stack()
         {}
 
         const Dwarf::Debug& dbg;
@@ -55,34 +67,55 @@ namespace Insight {
         MethodOffsetMap methods;
         int anonymous_count;
         std::stack<NamespaceInfoImpl*> namespace_stack;
-        std::stack<StructInfoImpl*> struct_stack;
+        std::stack<StructOrUnion> type_stack;
     };
 
     static void add_type_to_parent(BuildContext& ctx, std::shared_ptr<TypeInfo> ptr) {
-        if (ctx.struct_stack.empty())
+        STRUCT_OR_UNION_VISITOR(TypeInfo, type, info->add_type(ptr));
+
+        if (ctx.type_stack.empty())
             ctx.namespace_stack.top()->add_type(ptr);
-        else
-            ctx.struct_stack.top()->add_type(ptr);
+        else {
+            auto visitor = add_type(ptr);
+            ctx.type_stack.top().apply_visitor(visitor);
+        }
     }
 
     static void add_func_to_parent(BuildContext& ctx, std::shared_ptr<FunctionInfo> ptr) {
-        if (ctx.struct_stack.empty())
+        STRUCT_OR_UNION_VISITOR(FunctionInfo, function, info->add_function(ptr));
+
+        if (ctx.type_stack.empty())
             ctx.namespace_stack.top()->add_function(ptr);
-        else
-            ctx.struct_stack.top()->add_function(ptr);
+        else {
+            auto visitor = add_function(ptr);
+            ctx.type_stack.top().apply_visitor(visitor);
+        }
     }
 
     static void add_var_to_parent(BuildContext& ctx, std::shared_ptr<VariableInfo> ptr) {
-        if (ctx.struct_stack.empty())
+        STRUCT_OR_UNION_VISITOR(VariableInfo, variable, info->add_variable(ptr));
+
+        if (ctx.type_stack.empty())
             ctx.namespace_stack.top()->add_variable(ptr);
-        else
-            ctx.struct_stack.top()->add_variable(ptr);
+        else {
+            auto visitor = add_variable(ptr);
+            ctx.type_stack.top().apply_visitor(visitor);
+        }
     }
 
     static Container *get_parent(BuildContext& ctx) {
-        if (ctx.struct_stack.empty())
+        if (ctx.type_stack.empty())
             return ctx.namespace_stack.top();
-        return ctx.struct_stack.top();
+        else {
+            auto& t = ctx.type_stack.top();
+            if (t.type() == typeid(std::shared_ptr<StructInfoImpl>)) {
+                return boost::get<std::shared_ptr<StructInfoImpl>>(t).get();
+            } else if (t.type() == typeid(std::shared_ptr<UnionInfoImpl>)) {
+                return boost::get<std::shared_ptr<UnionInfoImpl>>(t).get();
+            } else {
+                throw std::runtime_error("unexpected variant value");
+            }
+        }
     }
 
     std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
@@ -115,6 +148,7 @@ namespace Insight {
     static std::shared_ptr<TypeInfo> get_type(BuildContext& ctx, Dwarf::Off offset);
     static std::shared_ptr<TypeInfo> get_type_attr(BuildContext &ctx, Dwarf::Die &die);
     static std::shared_ptr<TypeInfo> build_struct_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent);
+    static std::shared_ptr<TypeInfo> build_union_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent);
 
     static std::shared_ptr<TypeInfo> build_type(Dwarf::Die& die, BuildContext& ctx, bool register_parent) {
         static std::unordered_map<std::string, PrimitiveKind> primitiveKinds {
@@ -187,6 +221,10 @@ namespace Insight {
                 case DW_TAG_structure_type: {
                     type = build_struct_type(die, ctx, register_parent);
                     type_registry["struct " + type->name()] = type;
+                } break;
+                case DW_TAG_union_type: {
+                    type = build_union_type(die, ctx, register_parent);
+                    type_registry["union " + type->name()] = type;
                 } break;
                 case DW_TAG_pointer_type: {
                     std::shared_ptr<PointerTypeInfoImpl> t = std::make_shared<PointerTypeInfoImpl>();
@@ -285,7 +323,7 @@ namespace Insight {
         const Dwarf::Tag &tag = die.get_tag();
         BuildContext& ctx = *static_cast<BuildContext*>(data);
 
-        StructInfoImpl *structinfo = ctx.struct_stack.top();
+        StructInfoImpl& structinfo = *boost::get<std::shared_ptr<StructInfoImpl>>(ctx.type_stack.top());
         switch (tag.get_id()) {
             case DW_TAG_member: {
                 size_t offset = get_offset(die);
@@ -296,8 +334,8 @@ namespace Insight {
                 if (!type)
                     break;
 
-                std::shared_ptr<FieldInfo> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, type, *structinfo);
-                structinfo->add_field(finfo);
+                std::shared_ptr<FieldInfo> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, type, structinfo);
+                structinfo.add_field(finfo);
             } break;
             case DW_TAG_subprogram: {
                 if (!die.get_name()) // ignore unnamed methods
@@ -307,7 +345,7 @@ namespace Insight {
                 if (!return_type)
                     break;
 
-                std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type, *structinfo);
+                std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type, structinfo);
 
                 std::unique_ptr<const Dwarf::Attribute> vattr = die.get_attribute(DW_AT_virtuality);
                 std::unique_ptr<const Dwarf::Attribute> vtabattr = die.get_attribute(DW_AT_vtable_elem_location);
@@ -318,16 +356,50 @@ namespace Insight {
                 }
 
                 Dwarf::Off off = die.get_offset();
-                ctx.methods[off] = method;
+                ctx.methods.insert(std::make_pair(off, StructOrUnionMethod(method)));
 
-                structinfo->add_method(method);
+                structinfo.add_method(method);
             } break;
             case DW_TAG_inheritance: {
                 auto super_type = get_type_attr(ctx, die);
                 if (!super_type)
                     break;
 
-                structinfo->add_supertype(std::dynamic_pointer_cast<StructInfo>(super_type));
+                structinfo.add_supertype(std::dynamic_pointer_cast<StructInfo>(super_type));
+            } break;
+            default: break;
+        }
+        return Dwarf::Die::TraversalResult::SKIP;
+    }
+
+    static Dwarf::Die::TraversalResult handle_union_member(Dwarf::Die &die, void *data) {
+        const Dwarf::Tag &tag = die.get_tag();
+        BuildContext& ctx = *static_cast<BuildContext*>(data);
+
+        UnionInfoImpl& unioninfo = *boost::get<std::shared_ptr<UnionInfoImpl>>(ctx.type_stack.top());
+        switch (tag.get_id()) {
+            case DW_TAG_member: {
+                auto type = get_type_attr(ctx, die);
+                if (!type)
+                    break;
+
+                std::shared_ptr<UnionFieldInfo> finfo = std::make_shared<UnionFieldInfoImpl>(die.get_name(), type, unioninfo);
+                unioninfo.add_field(finfo);
+            } break;
+            case DW_TAG_subprogram: {
+                if (!die.get_name()) // ignore unnamed methods
+                    break;
+
+                auto return_type = get_type_attr(ctx, die);
+                if (!return_type)
+                    break;
+
+                std::shared_ptr<UnionMethodInfoImpl> method = std::make_shared<UnionMethodInfoImpl>(die.get_name(), return_type, unioninfo);
+
+                Dwarf::Off off = die.get_offset();
+                ctx.methods.insert(std::make_pair(off, StructOrUnionMethod(method)));
+
+                unioninfo.add_method(method);
             } break;
             default: break;
         }
@@ -347,11 +419,31 @@ namespace Insight {
         if (register_parent)
             structinfo->set_parent(parent);
 
-        ctx.struct_stack.push(&*structinfo);
+        ctx.type_stack.push(StructOrUnion(structinfo));
         die.traverse_headless(handle_member, &ctx);
-        ctx.struct_stack.pop();
+        ctx.type_stack.pop();
 
         return structinfo;
+    }
+
+    static std::shared_ptr<TypeInfo> build_union_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent) {
+        std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
+        size_t size = !attrsize ? 0 : attrsize->as<Dwarf::Off>();
+
+        Container* parent = get_parent(ctx);
+
+        std::string name = die.get_name() ?: ("anonymous#" + std::to_string(ctx.anonymous_count++));
+        std::shared_ptr<UnionInfoImpl> info = std::make_shared<UnionInfoImpl>(name, size);
+        ctx.types[die.get_offset()] = info;
+
+        if (register_parent)
+            info->set_parent(parent);
+
+        ctx.type_stack.push(StructOrUnion(info));
+        die.traverse_headless(handle_union_member, &ctx);
+        ctx.type_stack.pop();
+
+        return info;
     }
 
     static Dwarf::Die::TraversalResult infer_types(Dwarf::Die &die, void *data) {
@@ -412,6 +504,7 @@ namespace Insight {
             case DW_TAG_base_type:
             case DW_TAG_class_type:
             case DW_TAG_structure_type:
+            case DW_TAG_union_type:
             case DW_TAG_pointer_type:
             case DW_TAG_typedef:
                 build_type(die, ctx, true);
@@ -440,18 +533,37 @@ namespace Insight {
                     func->address_ = reinterpret_cast<void*>(addr);
                 } else {
                     Dwarf::Off off = attrspec->as<Dwarf::Off>();
-                    auto it = ctx.methods.find(off);
+                    MethodOffsetMap::iterator it = ctx.methods.find(off);
                     if (it != ctx.methods.end()) {
-                        std::shared_ptr<MethodInfoImpl>& method = it->second;
-                        if (method->is_virtual())
-                            break;
+                        struct AddMethod : boost::static_visitor<void> {
+                            void operator()(std::shared_ptr<MethodInfoImpl>& method) {
+                                if (method->is_virtual())
+                                    return;
 
-                        std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
-                        if (!attraddr)
-                            break;
-                        Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
+                                std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
+                                if (!attraddr)
+                                    return;
+                                Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
 
-                        method->address_ = reinterpret_cast<void*>(addr);
+                                method->address_ = reinterpret_cast<void*>(addr);
+                            }
+
+                            void operator()(std::shared_ptr<UnionMethodInfoImpl>& method) {
+                                std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
+                                if (!attraddr)
+                                    return;
+                                Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
+
+                                method->address_ = reinterpret_cast<void*>(addr);
+                            }
+
+                            AddMethod(Dwarf::Die& d) : die(d) {}
+
+                            Dwarf::Die& die;
+                        };
+
+                        AddMethod visitor(die);
+                        it->second.apply_visitor(visitor);
                     }
                 }
             } break;

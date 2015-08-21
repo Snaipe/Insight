@@ -83,6 +83,11 @@ public:
     int n_;
 };
 
+union TypeofUnionTest {
+    int a;
+    char b;
+};
+
 TEST(Typeof, Expression) {
     EXPECT_EQ(type_of(1), type_of(int));
     EXPECT_EQ(type_of(1u), type_of(unsigned int));
@@ -112,4 +117,5 @@ TEST(Typeof, Expression) {
 #endif
 
     EXPECT_EQ(type_of(TypeofTest(42)), type_of(TypeofTest));
+    EXPECT_EQ(type_of(TypeofUnionTest({42})), type_of(TypeofUnionTest));
 }

@@ -161,33 +161,21 @@ namespace Insight {
     MIXIN(method, MethodInfo, MethodInfo);
     MIXIN(field, FieldInfo, FieldInfo);
     MIXIN(variable, VariableInfo, VariableInfo);
+    MIXIN(method, UnionMethodInfo, UnionMethodInfo);
+    MIXIN(field, UnionFieldInfo, UnionFieldInfo);
     MIXIN(nested_namespace, NamespaceInfo, NamespaceInfo);
     MIXIN(type, TypeInfo, TypeInfo);
     WEAK_MIXIN(supertype, Supertype, StructInfo);
 
     template <typename T>
-    using ContainerBase =
-            FunctionInfoContainerBase<
-                    VariableInfoContainerBase<
-                            TypeInfoContainerBase<
-                                    NamespaceInfoContainerBase<T>
-                            >
-                    >
-            >;
+    using ContainerBase = FunctionInfoContainerBase<VariableInfoContainerBase<TypeInfoContainerBase<T>>>;
 
     template <typename T>
-    using CompoundTypeBase =
-            FunctionInfoContainerBase<
-                    VariableInfoContainerBase<
-                            TypeInfoContainerBase<
-                                    MethodInfoContainerBase<
-                                            FieldInfoContainerBase<
-                                                    SupertypeContainerBase<T>
-                                            >
-                                    >
-                            >
-                    >
-            >;
+    using NamespaceBase = ContainerBase<NamespaceInfoContainerBase<T>>;
+
+    using StructTypeBase = ContainerBase<MethodInfoContainerBase<FieldInfoContainerBase<SupertypeContainerBase<StructInfo>>>>;
+    using UnionTypeBase = ContainerBase<UnionMethodInfoContainerBase<UnionFieldInfoContainerBase<UnionInfo>>>;
+
 
     template <class T>
     class TypedBase : public ChildBase<T> {
@@ -210,6 +198,11 @@ namespace Insight {
         virtual size_t offset() const override;
 
         size_t offset_;
+    };
+
+    class UnionFieldInfoImpl : public TypedBase<UnionFieldInfo> {
+    public:
+        UnionFieldInfoImpl(const char *name, std::weak_ptr<TypeInfo> type, Container& parent);
     };
 
     class VariableInfoImpl : public TypedBase<VariableInfo> {
@@ -259,12 +252,17 @@ namespace Insight {
         size_t vtab_index_;
     };
 
+    class UnionMethodInfoImpl : public CallableBase<UnionMethodInfo> {
+    public:
+        UnionMethodInfoImpl(const char *name, std::weak_ptr<TypeInfo> return_type, Container& parent);
+    };
+
     class FunctionInfoImpl : public CallableBase<FunctionInfo> {
     public:
         FunctionInfoImpl(const char *name, std::weak_ptr<TypeInfo> return_type, Container& parent);
     };
 
-    class StructInfoImpl : public TypeBase<CompoundTypeBase<StructInfo>> {
+    class StructInfoImpl : public TypeBase<StructTypeBase> {
     public:
         StructInfoImpl(std::string& name, size_t size);
 
@@ -273,6 +271,11 @@ namespace Insight {
         virtual void add_supertype(std::weak_ptr<StructInfo> supertype) override;
 
         std::unordered_set<std::string> ancestors_;
+    };
+
+    class UnionInfoImpl : public TypeBase<UnionTypeBase> {
+    public:
+        UnionInfoImpl(std::string& name, size_t size);
     };
 
     class UnspecifiedTypeInfoImpl : public TypeBase<UnspecifiedTypeInfo> {
@@ -322,7 +325,7 @@ namespace Insight {
         std::weak_ptr<TypeInfo> type_;
     };
 
-    class NamespaceInfoImpl : public ChildBase<ContainerBase<NamespaceInfo>> {
+    class NamespaceInfoImpl : public ChildBase<NamespaceBase<NamespaceInfo>> {
     public:
         NamespaceInfoImpl(const char* name);
         NamespaceInfoImpl(const char* name, Container& parent);

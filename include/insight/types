@@ -107,9 +107,14 @@ namespace Insight {
         virtual Container& parent() const = 0;
     };
 
-    class MemberInfo : virtual public Named, virtual public Child {
+    class StructMemberInfo : virtual public Named, virtual public Child {
     public:
         virtual StructInfo& declaring_type() const;
+    };
+
+    class UnionMemberInfo : virtual public Named, virtual public Child {
+    public:
+        virtual UnionInfo& declaring_type() const;
     };
 
     class TypedInfo : virtual public Child {
@@ -117,7 +122,7 @@ namespace Insight {
         virtual TypeInfo& type() const = 0;
     };
 
-    class FieldInfo : virtual public TypedInfo, virtual public MemberInfo {
+    class FieldInfo : virtual public TypedInfo, virtual public StructMemberInfo {
     public:
         virtual size_t offset() const = 0;
 
@@ -134,6 +139,24 @@ namespace Insight {
             assert(type_of(T).is_compatible(declaring_type()));
             assert(type_of(V).is_compatible(type()));
             return *reinterpret_cast<V*>(reinterpret_cast<char*>(&instance) + offset());
+        }
+    };
+
+    class UnionFieldInfo : virtual public TypedInfo, virtual public UnionMemberInfo {
+    public:
+        template<typename V, typename T>
+        void set(T& instance, V value) const {
+            assert(type_of(T).is_compatible(declaring_type()));
+            assert(type_of(V).is_compatible(type()));
+            V* target = reinterpret_cast<V*>(&instance);
+            *target = value;
+        }
+
+        template<typename V, typename T>
+        V& get(T& instance) const {
+            assert(type_of(T).is_compatible(declaring_type()));
+            assert(type_of(V).is_compatible(type()));
+            return *reinterpret_cast<V*>(&instance);
         }
     };
 
@@ -176,7 +199,7 @@ namespace Insight {
     }
 #endif
 
-    class MethodInfo : virtual public Callable, virtual public MemberInfo {
+    class MethodInfo : virtual public Callable, virtual public StructMemberInfo {
     public:
         virtual bool is_virtual() const = 0;
         virtual size_t vtable_index() const = 0;
@@ -200,6 +223,23 @@ namespace Insight {
                 func = reinterpret_cast<FuncType>(addr);
             }
             return func(&instance, args...);
+        }
+    };
+
+    class UnionMethodInfo : virtual public Callable, virtual public UnionMemberInfo {
+    public:
+        template<typename R, typename T, typename ...Args>
+        R call(T& instance, Args... args) const {
+            assert(type_of(T).is_compatible(declaring_type()));
+#ifndef NDEBUG
+            insight_assert_valid_types(parameter_types(), { (&type_of(Args))... });
+#endif
+
+            using FuncType = R (*)(T*, Args...);
+            void* addr = address();
+            if (!addr)
+                throw std::runtime_error("No address for function " + name());
+            return reinterpret_cast<FuncType>(addr)(&instance, args...);
         }
     };
 
@@ -250,6 +290,18 @@ namespace Insight {
                 return t->is_ancestor(*this);
             }
             return false;
+        }
+    };
+
+    class UnionInfo : virtual public TypeInfo, virtual public Container {
+    public:
+        virtual const Range<UnionMethodInfo> methods() const = 0;
+        virtual UnionMethodInfo& method(std::string name) const = 0;
+        virtual const Range<UnionFieldInfo> fields() const = 0;
+        virtual UnionFieldInfo& field(std::string name) const = 0;
+
+        inline virtual bool is_compatible(const TypeInfo& type) const {
+            return *this == type;
         }
     };
 
@@ -304,8 +356,12 @@ namespace Insight {
         virtual NamespaceInfo& nested_namespace(std::string name) const = 0;
     };
 
-    inline StructInfo& MemberInfo::declaring_type() const {
+    inline StructInfo& StructMemberInfo::declaring_type() const {
         return dynamic_cast<StructInfo&>(parent());
+    }
+
+    inline UnionInfo& UnionMemberInfo::declaring_type() const {
+        return dynamic_cast<UnionInfo&>(parent());
     }
 
 }

@@ -42,6 +42,10 @@ namespace Insight {
         vtab_index_ = index;
     }
 
+    UnionMethodInfoImpl::UnionMethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
+        : CallableBase<UnionMethodInfo>(name, return_type, parent)
+    {}
+
     // FunctionInfo
 
     FunctionInfoImpl::FunctionInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
@@ -59,6 +63,10 @@ namespace Insight {
         return offset_;
     }
 
+    UnionFieldInfoImpl::UnionFieldInfoImpl(const char *name, std::weak_ptr<TypeInfo> type, Container &parent)
+        : TypedBase<UnionFieldInfo>(name, type, parent)
+    {}
+
     // VariableInfo
 
     VariableInfoImpl::VariableInfoImpl(const char *name, void* address, std::weak_ptr<TypeInfo> type, Container& parent)
@@ -73,6 +81,10 @@ namespace Insight {
     // StructInfo
 
     StructInfoImpl::StructInfoImpl(std::string& name, size_t size)
+        : TypeBase(name, size)
+    {}
+
+    UnionInfoImpl::UnionInfoImpl(std::string &name, size_t size)
         : TypeBase(name, size)
     {}
 

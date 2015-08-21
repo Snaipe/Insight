@@ -24,7 +24,7 @@
 namespace Insight {
     struct FieldInfo;
     struct MethodInfo;
-    struct MemberInfo;
+    struct StructMemberInfo;
     struct StructInfo;
     struct PrimitiveTypeInfo;
     struct TypeInfo;
@@ -33,7 +33,7 @@ namespace Insight {
 
 typedef const Insight::FieldInfo *insight_field_info;
 typedef const Insight::MethodInfo *insight_method_info;
-typedef const Insight::MemberInfo *insight_member_info;
+typedef const Insight::StructMemberInfo *insight_member_info;
 typedef const Insight::StructInfo *insight_struct_info;
 typedef const Insight::PrimitiveTypeInfo *insight_primitive_info;
 typedef const Insight::TypeInfo *insight_type_info;

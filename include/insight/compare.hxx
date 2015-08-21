@@ -11,6 +11,8 @@ namespace Insight {
             return *o == rhs;
         } else if (const StructInfo* o = dynamic_cast<const StructInfo*>(&lhs)) {
             return *o == rhs;
+        } else if (const UnionInfo* o = dynamic_cast<const UnionInfo*>(&lhs)) {
+            return *o == rhs;
         }
         return false;
     }
@@ -44,6 +46,15 @@ namespace Insight {
     }
 
     inline bool operator==(const StructInfo& lhs, const Container& rhs) {
+        if (&lhs == &rhs)
+            return true;
+
+        if (const TypeInfo* o = dynamic_cast<const TypeInfo*>(&rhs))
+            return lhs == *o;
+        return false;
+    }
+
+    inline bool operator==(const UnionInfo& lhs, const Container& rhs) {
         if (&lhs == &rhs)
             return true;
 

@@ -30,6 +30,7 @@ namespace Insight {
     class PointerTypeInfo;
     class PrimitiveTypeInfo;
     class StructInfo;
+    class UnionInfo;
     class ConstTypeInfo;
 
     TypeInfo& type_of_(void *dummy_addr);
@@ -72,6 +73,13 @@ template<typename T>
 struct insight_type_of__<T, typename std::enable_if<std::is_class<T>::value && !std::is_const<T>::value>::type> {
     static Insight::StructInfo& call() {
         return dynamic_cast<Insight::StructInfo&>(insight_type_of_impl__<T>());
+    }
+};
+
+template<typename T>
+struct insight_type_of__<T, typename std::enable_if<std::is_union<T>::value && !std::is_const<T>::value>::type> {
+    static Insight::UnionInfo& call() {
+        return dynamic_cast<Insight::UnionInfo&>(insight_type_of_impl__<T>());
     }
 };
 
