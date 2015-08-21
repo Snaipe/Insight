@@ -28,7 +28,7 @@ TEST(Virtual, Call) {
     Neg n;
     Square s;
 
-    Insight::StructInfo& type = dynamic_cast<Insight::StructInfo&>(type_of(Base));
+    Insight::StructInfo& type = type_of(Base);
 
     ASSERT_EQ(n.foo(42), type.method("foo").call<long>(n, 42));
     ASSERT_EQ(s.foo(42), type.method("foo").call<long>(s, 42));
