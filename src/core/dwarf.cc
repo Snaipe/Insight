@@ -342,7 +342,7 @@ namespace Insight {
 
                 auto return_type = get_type_attr(ctx, die);
                 if (!return_type)
-                    break;
+                    return_type = VOID_TYPE;
 
                 std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type, structinfo);
 
@@ -391,7 +391,7 @@ namespace Insight {
 
                 auto return_type = get_type_attr(ctx, die);
                 if (!return_type)
-                    break;
+                    return_type = VOID_TYPE;
 
                 std::shared_ptr<UnionMethodInfoImpl> method = std::make_shared<UnionMethodInfoImpl>(die.get_name(), return_type, unioninfo);
 
@@ -520,7 +520,7 @@ namespace Insight {
 
                     auto return_type = get_type_attr(ctx, die);
                     if (!return_type)
-                        break;
+                        return_type = VOID_TYPE;
 
                     std::shared_ptr<FunctionInfoImpl> func = std::make_shared<FunctionInfoImpl>(die.get_name(), return_type, *parent);
 
