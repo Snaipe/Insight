@@ -20,29 +20,33 @@
 #ifndef INSIGHT_ANNOTATE_HH
 # define INSIGHT_ANNOTATE_HH
 
+# include "types"
+
 #  define insight_annotation(Name) \
-    struct insight_annotation_ ## Name
+    struct Name
 
 # ifdef __cplusplus
-#  include "designated_initializer_compat.h"
 
 #  define insight_annotate_decl(Line, Name, ...) \
-    static insight_annotation_ ## Name insight_annotation_ ## Line
+    static constexpr Name insight_annotation_ ## Line
 
 #  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
 #  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
-#  define insight_annotate__(Line, ...) insight_annotate_decl(Line, __VA_ARGS__) = \
-        INSIGHT_ANNOTATION_CREATE_OBJ(__VA_ARGS__);
+#  define insight_annotate__(Line, Name, ...)                                    \
+    static constexpr Name insight_annotation_ ## Line {                          \
+        __VA_ARGS__                                                              \
+    };
+
 # else
 #  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
 #  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
 #  define insight_annotate__(Line, Name, ...)                                           \
-    static const struct insight_annotation_ ## Name insight_annotation_ ## Line = {     \
+    static const struct Name insight_annotation_ ## Line = {                            \
         __VA_ARGS__                                                                     \
     };
 # endif
 
-# ifdef USE_DOLLAR_ANNOTATIONS
+# if !defined(INSIGHT_NO_DOLLAR_ANNOTATION) && !defined($)
 #  ifndef __GNUC__
 #   error Dollar-sign annotation are only supported on GNU compilers
 #  else
