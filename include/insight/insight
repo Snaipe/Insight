@@ -54,7 +54,7 @@ namespace Insight {
              std::is_void<T>::value ||
              std::is_same<T, bool>::value)> {};
 
-};
+}
 
 template<typename T>
 static Insight::TypeInfo& insight_type_of_impl__() {
