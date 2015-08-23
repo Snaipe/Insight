@@ -178,8 +178,8 @@ namespace Insight {
         std::shared_ptr<TypeInfo> type;
         std::string name = die.get_name() ?: "";
 
-        const auto t = type_registry.find(name);
-        if (t != type_registry.end()) {
+        const auto t = ctx.types.find(die.get_offset());
+        if (t != ctx.types.end()) {
             type = t->second;
             if (register_parent) {
                 MutableChild *child = dynamic_cast<MutableChild *>(&*type);
@@ -220,11 +220,9 @@ namespace Insight {
                 } break;
                 case DW_TAG_structure_type: {
                     type = build_struct_type(die, ctx, register_parent);
-                    type_registry["struct " + type->name()] = type;
                 } break;
                 case DW_TAG_union_type: {
                     type = build_union_type(die, ctx, register_parent);
-                    type_registry["union " + type->name()] = type;
                 } break;
                 case DW_TAG_pointer_type: {
                     std::shared_ptr<PointerTypeInfoImpl> t = std::make_shared<PointerTypeInfoImpl>();
@@ -284,11 +282,8 @@ namespace Insight {
                 } break;
                 default: break;
             }
-            if (type) {
-                if (register_parent)
-                    add_type_to_parent(ctx, type);
-                type_registry[type->name()] = type;
-            }
+            if (type && register_parent)
+                add_type_to_parent(ctx, type);
         }
         return type;
     }
@@ -506,9 +501,11 @@ namespace Insight {
             case DW_TAG_structure_type:
             case DW_TAG_union_type:
             case DW_TAG_pointer_type:
-            case DW_TAG_typedef:
-                build_type(die, ctx, true);
-                break;
+            case DW_TAG_typedef: {
+                std::shared_ptr<TypeInfo> type = build_type(die, ctx, true);
+                if (type)
+                    type_registry[type->fullname()] = type;
+            } break;
             case DW_TAG_subprogram: {
                 std::unique_ptr<const Dwarf::Attribute> attrspec = die.get_attribute(DW_AT_specification);
                 if (!attrspec) {
