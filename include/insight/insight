@@ -37,6 +37,7 @@ namespace Insight {
     TypeInfo& type_of_(std::string name);
     TypeInfo& type_of_(const std::type_info& info);
 
+    NamespaceInfo& namespace_of_(std::string name);
     NamespaceInfo& root_namespace();
 
     template<class T>
@@ -109,9 +110,14 @@ struct insight_type_of__<T, typename std::enable_if<std::is_const<T>::value>::ty
 # else
 #  define insight_type_of(Thing) (insight_type_of__<Thing>::call())
 # endif
+# define insight_namespace_of(Namespace) (Insight::namespace_of_(#Namespace))
 
 # ifndef type_of
 #  define type_of insight_type_of
+# endif
+
+# ifndef namespace_of
+#  define namespace_of insight_namespace_of
 # endif
 
 # include "types"

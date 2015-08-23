@@ -104,6 +104,7 @@ namespace Insight {
     using MethodOffsetMap = OffsetMap<StructOrUnionMethod>;
 
     NamespaceInfoImpl ROOT_NAMESPACE("");
+    std::unordered_map<std::string, std::shared_ptr<NamespaceInfo>> namespaces;
 
     std::shared_ptr<TypeInfo> VOID_TYPE = std::make_shared<PrimitiveTypeInfoImpl>("void", 0, PrimitiveKind::VOID, ROOT_NAMESPACE);
 
@@ -203,6 +204,10 @@ namespace Insight {
 
     NamespaceInfo& root_namespace() {
         return ROOT_NAMESPACE;
+    }
+
+    NamespaceInfo& namespace_of_(std::string name) {
+        return *namespaces.at(name);
     }
 
     static size_t get_offset(Dwarf::Die &die) {
@@ -624,6 +629,7 @@ namespace Insight {
                 } else {
                     ns = std::make_shared<NamespaceInfoImpl>(die.get_name(), *parent);
                     parentns->add_nested_namespace(ns);
+                    namespaces[ns->fullname()] = ns;
                 }
                 ctx.namespace_stack.push(&*ns);
                 die.traverse_headless(build_metadata, data);
