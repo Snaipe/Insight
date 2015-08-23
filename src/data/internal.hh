@@ -113,15 +113,17 @@ namespace Insight {
         virtual void set_parent(Container* parent) = 0;
     };
 
+    MIXIN(annotation, AnnotationInfo, AnnotationInfo);
+
     template <class T>
-    class ChildBase : public NameBase<T>, virtual public MutableChild {
+    class ChildBase : public NameBase<AnnotationInfoContainerBase<T>>, virtual public MutableChild {
     public:
-        ChildBase() : NameBase<T>(), parent_(nullptr) {}
-        ChildBase(Container& parent) : NameBase<T>(), parent_(&parent) {}
-        ChildBase(const std::string &name) : NameBase<T>(name), parent_(nullptr) {}
-        ChildBase(std::string&& name) : NameBase<T>(name), parent_(nullptr) {}
-        ChildBase(const std::string &name, Container& parent) : NameBase<T>(parent.fullname(), name), parent_(&parent) {}
-        ChildBase(std::string&& name, Container& parent) : NameBase<T>(parent.fullname(), name), parent_(&parent) {}
+        ChildBase() : NameBase<AnnotationInfoContainerBase<T>>(), parent_(nullptr) {}
+        ChildBase(Container& parent) : NameBase<AnnotationInfoContainerBase<T>>(), parent_(&parent) {}
+        ChildBase(const std::string &name) : NameBase<AnnotationInfoContainerBase<T>>(name), parent_(nullptr) {}
+        ChildBase(std::string&& name) : NameBase<AnnotationInfoContainerBase<T>>(name), parent_(nullptr) {}
+        ChildBase(const std::string &name, Container& parent) : NameBase<AnnotationInfoContainerBase<T>>(parent.fullname(), name), parent_(&parent) {}
+        ChildBase(std::string&& name, Container& parent) : NameBase<AnnotationInfoContainerBase<T>>(parent.fullname(), name), parent_(&parent) {}
 
         virtual Container& parent() const override {
             return *parent_;
@@ -129,7 +131,7 @@ namespace Insight {
 
         virtual void set_parent(Container* parent) override {
             parent_ = parent;
-            NameBase<T>::set_fullname(parent->fullname(), this->name());
+            NameBase<AnnotationInfoContainerBase<T>>::set_fullname(parent->fullname(), this->name());
         }
 
         Container* parent_;
@@ -182,6 +184,16 @@ namespace Insight {
     public:
         TypedBase(const char *name, std::weak_ptr<TypeInfo> type, Container& parent)
             : ChildBase<T>(std::string(name), parent)
+            , type_(type)
+        {}
+
+        TypedBase(const char *name, std::weak_ptr<TypeInfo> type)
+            : ChildBase<T>(std::string(name))
+            , type_(type)
+        {}
+
+        TypedBase(std::string name, std::weak_ptr<TypeInfo> type)
+            : ChildBase<T>(name)
             , type_(type)
         {}
 
@@ -331,6 +343,17 @@ namespace Insight {
         NamespaceInfoImpl(const char* name, Container& parent);
 
         virtual Container& parent() const override;
+    };
+
+    class AnnotationInfoImpl : public TypedBase<AnnotationInfo> {
+    public:
+        AnnotationInfoImpl(std::string name, void *data, std::weak_ptr<TypeInfo> type);
+        virtual void* data_ptr() const override;
+        virtual Annotated& annotated_element() const override;
+        void set_annotated(std::shared_ptr<Annotated>& annotated);
+
+        void* data_;
+        std::weak_ptr<Annotated> annotated_;
     };
 }
 

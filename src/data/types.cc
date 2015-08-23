@@ -194,4 +194,21 @@ namespace Insight {
     UnspecifiedTypeInfoImpl::UnspecifiedTypeInfoImpl(const char *name)
         : TypeBase(name, 0)
     {}
+
+    AnnotationInfoImpl::AnnotationInfoImpl(std::string name, void* data, std::weak_ptr<TypeInfo> type)
+        : TypedBase<AnnotationInfo>(name, type)
+        , data_(data)
+    {}
+
+    void* AnnotationInfoImpl::data_ptr() const {
+        return data_;
+    }
+
+    Annotated &AnnotationInfoImpl::annotated_element() const {
+        return *annotated_.lock();
+    }
+
+    void AnnotationInfoImpl::set_annotated(std::shared_ptr<Annotated> &annotated) {
+        annotated_ = annotated;
+    }
 }

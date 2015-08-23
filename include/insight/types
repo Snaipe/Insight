@@ -37,7 +37,28 @@ namespace Insight {
         virtual const std::string& fullname() const = 0;
     };
 
-    class TypeInfo : virtual public Named {
+    class Annotated;
+
+    class AnnotationInfo : public virtual Named {
+    public:
+        virtual void* data_ptr() const = 0;
+        virtual TypeInfo& type() const = 0;
+        virtual Annotated& annotated_element() const = 0;
+
+        template <typename T>
+        T& data() {
+            assert(type_of(T).is_compatible(type()));
+            return *reinterpret_cast<T*>(data_ptr());
+        }
+    };
+
+    class Annotated {
+    public:
+        virtual const Range<AnnotationInfo> annotations() const = 0;
+        virtual AnnotationInfo& annotation(std::string name) const = 0;
+    };
+
+    class TypeInfo : virtual public Named, virtual public Annotated {
     public:
         virtual size_t size_of() const = 0;
         virtual Container& parent() const = 0;
@@ -107,17 +128,17 @@ namespace Insight {
         virtual Container& parent() const = 0;
     };
 
-    class StructMemberInfo : virtual public Named, virtual public Child {
+    class StructMemberInfo : virtual public Named, virtual public Child, virtual public Annotated {
     public:
         virtual StructInfo& declaring_type() const;
     };
 
-    class UnionMemberInfo : virtual public Named, virtual public Child {
+    class UnionMemberInfo : virtual public Named, virtual public Child, virtual public Annotated {
     public:
         virtual UnionInfo& declaring_type() const;
     };
 
-    class TypedInfo : virtual public Child {
+    class TypedInfo : virtual public Child, virtual public Annotated {
     public:
         virtual TypeInfo& type() const = 0;
     };
@@ -350,7 +371,7 @@ namespace Insight {
         }
     };
 
-    class NamespaceInfo : virtual public Container {
+    class NamespaceInfo : virtual public Container, virtual public Annotated {
     public:
         virtual const Range<NamespaceInfo> nested_namespaces() const = 0;
         virtual NamespaceInfo& nested_namespace(std::string name) const = 0;

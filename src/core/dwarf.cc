@@ -19,6 +19,7 @@
  */
 #include <vector>
 #include <unordered_map>
+#include <map>
 #include <memory>
 #include <stack>
 #include <boost/variant.hpp>
@@ -42,6 +43,60 @@ namespace Insight {
     using StructOrUnion = boost::variant<std::shared_ptr<StructInfoImpl>, std::shared_ptr<UnionInfoImpl>>;
     using StructOrUnionMethod = boost::variant<std::shared_ptr<MethodInfoImpl>, std::shared_ptr<UnionMethodInfoImpl>>;
 
+    using AnyAnnotated = boost::variant<
+                std::shared_ptr<StructInfoImpl>,
+                std::shared_ptr<UnionInfoImpl>,
+                std::shared_ptr<VariableInfoImpl>,
+                std::shared_ptr<FunctionInfoImpl>,
+                std::shared_ptr<MethodInfoImpl>,
+                std::shared_ptr<FieldInfoImpl>,
+                std::shared_ptr<UnionMethodInfoImpl>,
+                std::shared_ptr<UnionFieldInfoImpl>,
+                std::shared_ptr<NamespaceInfoImpl>
+            >;
+
+    struct AddAnnotation : boost::static_visitor<void> {
+        AddAnnotation(std::shared_ptr<AnnotationInfoImpl> annotation) : annotation_(annotation) {}
+
+        void operator()(std::shared_ptr<StructInfoImpl>& type) {
+            type->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<UnionInfoImpl>& type) {
+            type->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<FieldInfoImpl>& field) {
+            field->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<MethodInfoImpl>& method) {
+            method->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<UnionFieldInfoImpl>& field) {
+            field->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<UnionMethodInfoImpl>& method) {
+            method->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<VariableInfoImpl>& var) {
+            var->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<FunctionInfoImpl>& fun) {
+            fun->add_annotation(annotation_);
+        }
+
+        void operator()(std::shared_ptr<NamespaceInfoImpl>& ns) {
+            ns->add_annotation(annotation_);
+        }
+
+        std::shared_ptr<AnnotationInfoImpl> annotation_;
+    };
+
     template<typename T>
     using OffsetMap = std::unordered_map<size_t, T>;
 
@@ -60,6 +115,7 @@ namespace Insight {
             , anonymous_count(0)
             , namespace_stack()
             , type_stack()
+            , annotations()
         {}
 
         const Dwarf::Debug& dbg;
@@ -68,7 +124,19 @@ namespace Insight {
         int anonymous_count;
         std::stack<NamespaceInfoImpl*> namespace_stack;
         std::stack<StructOrUnion> type_stack;
+        std::map<size_t, std::shared_ptr<AnnotationInfoImpl>> annotations;
+        std::map<size_t, AnyAnnotated> annotated;
     };
+
+    static size_t get_src_location_offset(Dwarf::Die& die) {
+        std::unique_ptr<const Dwarf::Attribute> lineattr = die.get_attribute(DW_AT_decl_line);
+        std::unique_ptr<const Dwarf::Attribute> fileattr = die.get_attribute(DW_AT_decl_file);
+
+        if (!lineattr || !fileattr)
+            return 0;
+
+        return (fileattr->as<Dwarf::Unsigned>() << ((sizeof (size_t) >> 1) * 8)) | lineattr->as<Dwarf::Unsigned>();
+    }
 
     static void add_type_to_parent(BuildContext& ctx, std::shared_ptr<TypeInfo> ptr) {
         STRUCT_OR_UNION_VISITOR(TypeInfo, type, info->add_type(ptr));
@@ -325,16 +393,59 @@ namespace Insight {
         StructInfoImpl& structinfo = *boost::get<std::shared_ptr<StructInfoImpl>>(ctx.type_stack.top());
         switch (tag.get_id()) {
             case DW_TAG_member: {
-                size_t offset = get_offset(die);
-                if (offset == static_cast<size_t>(-1))
-                    break;
+                std::string name(die.get_name() ?: "");
 
                 auto type = get_type_attr(ctx, die);
                 if (!type)
                     break;
 
-                std::shared_ptr<FieldInfo> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, type, structinfo);
-                structinfo.add_field(finfo);
+                std::string prefix("insight_annotation");
+                if (name.substr(0, prefix.size()) == prefix) {
+                    std::unique_ptr<const Dwarf::Attribute> locattr = die.get_attribute(DW_AT_location);
+                    std::unique_ptr<const Dwarf::Attribute> constattr = die.get_attribute(DW_AT_const_value);
+
+                    std::shared_ptr<AnnotationInfoImpl> annotation;
+
+                    std::shared_ptr<ConstTypeInfo> constType = std::dynamic_pointer_cast<ConstTypeInfo>(type);
+                    std::string annotationName = constType ? constType->type().name() : type->name();
+
+                    if (locattr) {
+                        size_t loc = locattr->as<Dwarf::Off>();
+                        void *addr = reinterpret_cast<void*>(loc);
+
+                        annotation = std::make_shared<AnnotationInfoImpl>(annotationName, addr, type);
+                    } else if (constattr) {
+                        Dwarf::Block* block = constattr->as<Dwarf::Block*>();
+
+                        // we leak the block because we need it alive until the program ends
+                        void *addr = std::malloc(block->bl_len);
+                        std::memcpy(addr, block->bl_data, block->bl_len);
+                        std::shared_ptr<const Dwarf::Debug> dbg = die.get_debug();
+                        if (dbg)
+                            dbg->dealloc(block);
+
+                        annotation = std::make_shared<AnnotationInfoImpl>(annotationName, addr, type);
+                    }
+
+                    if (!annotation)
+                        break;
+
+                    size_t off = get_src_location_offset(die);
+                    if (off)
+                        ctx.annotations[off] = annotation;
+                } else {
+
+                    size_t offset = get_offset(die);
+                    if (offset == static_cast<size_t>(-1))
+                        break;
+
+                    std::shared_ptr<FieldInfoImpl> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, type, structinfo);
+                    structinfo.add_field(finfo);
+
+                    size_t off = get_src_location_offset(die);
+                    if (off)
+                        ctx.annotated[off] = AnyAnnotated(finfo);
+                }
             } break;
             case DW_TAG_subprogram: {
                 if (!die.get_name()) // ignore unnamed methods
@@ -358,6 +469,10 @@ namespace Insight {
                 ctx.methods.insert(std::make_pair(off, StructOrUnionMethod(method)));
 
                 structinfo.add_method(method);
+
+                size_t foff = get_src_location_offset(die);
+                if (foff)
+                    ctx.annotated[foff] = AnyAnnotated(method);
             } break;
             case DW_TAG_inheritance: {
                 auto super_type = get_type_attr(ctx, die);
@@ -382,8 +497,12 @@ namespace Insight {
                 if (!type)
                     break;
 
-                std::shared_ptr<UnionFieldInfo> finfo = std::make_shared<UnionFieldInfoImpl>(die.get_name(), type, unioninfo);
+                std::shared_ptr<UnionFieldInfoImpl> finfo = std::make_shared<UnionFieldInfoImpl>(die.get_name(), type, unioninfo);
                 unioninfo.add_field(finfo);
+
+                size_t off = get_src_location_offset(die);
+                if (off)
+                    ctx.annotated[off] = AnyAnnotated(finfo);
             } break;
             case DW_TAG_subprogram: {
                 if (!die.get_name()) // ignore unnamed methods
@@ -399,6 +518,10 @@ namespace Insight {
                 ctx.methods.insert(std::make_pair(off, StructOrUnionMethod(method)));
 
                 unioninfo.add_method(method);
+
+                size_t foff = get_src_location_offset(die);
+                if (foff)
+                    ctx.annotated[foff] = AnyAnnotated(method);
             } break;
             default: break;
         }
@@ -422,6 +545,10 @@ namespace Insight {
         die.traverse_headless(handle_member, &ctx);
         ctx.type_stack.pop();
 
+        size_t off = get_src_location_offset(die);
+        if (off)
+            ctx.annotated[off] = AnyAnnotated(structinfo);
+
         return structinfo;
     }
 
@@ -441,6 +568,10 @@ namespace Insight {
         ctx.type_stack.push(StructOrUnion(info));
         die.traverse_headless(handle_union_member, &ctx);
         ctx.type_stack.pop();
+
+        size_t off = get_src_location_offset(die);
+        if (off)
+            ctx.annotated[off] = AnyAnnotated(info);
 
         return info;
     }
@@ -497,6 +628,10 @@ namespace Insight {
                 ctx.namespace_stack.push(&*ns);
                 die.traverse_headless(build_metadata, data);
                 ctx.namespace_stack.pop();
+
+                size_t off = get_src_location_offset(die);
+                if (off)
+                    ctx.annotated[off] = AnyAnnotated(ns);
             } return Dwarf::Die::TraversalResult::SKIP;
             case DW_TAG_unspecified_type:
             case DW_TAG_const_type:
@@ -532,6 +667,10 @@ namespace Insight {
                     Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
 
                     func->address_ = reinterpret_cast<void*>(addr);
+
+                    size_t off = get_src_location_offset(die);
+                    if (off)
+                        ctx.annotated[off] = AnyAnnotated(func);
                 } else {
                     Dwarf::Off off = attrspec->as<Dwarf::Off>();
                     MethodOffsetMap::iterator it = ctx.methods.find(off);
@@ -578,16 +717,53 @@ namespace Insight {
                 if (!type)
                     break;
 
-                size_t loc = locattr->as<Dwarf::Off>();
-                void *addr = reinterpret_cast<void*>(loc);
+                std::string prefix("insight_annotation");
+                if (std::string(name).substr(0, prefix.size()) == prefix) {
+                    size_t loc = locattr->as<Dwarf::Off>();
+                    void *addr = reinterpret_cast<void*>(loc);
 
-                auto var = std::make_shared<VariableInfoImpl>(name, addr, type, *parent);
+                    std::shared_ptr<ConstTypeInfo> constType = std::dynamic_pointer_cast<ConstTypeInfo>(type);
+                    std::string annotationName = constType ? constType->type().name() : type->name();
 
-                add_var_to_parent(ctx, var);
+                    size_t off = get_src_location_offset(die);
+                    if (off)
+                        ctx.annotations[off] = std::make_shared<AnnotationInfoImpl>(annotationName, addr, type);
+                } else {
+                    size_t loc = locattr->as<Dwarf::Off>();
+                    void *addr = reinterpret_cast<void*>(loc);
+
+                    auto var = std::make_shared<VariableInfoImpl>(name, addr, type, *parent);
+
+                    add_var_to_parent(ctx, var);
+
+                    size_t off = get_src_location_offset(die);
+                    if (off)
+                        ctx.annotated[off] = AnyAnnotated(var);
+                }
             } break;
             default: break;
         }
         return Dwarf::Die::TraversalResult::SKIP;
+    }
+
+    void process_annotations(BuildContext& ctx) {
+
+        auto annotated = ctx.annotated.begin();
+        auto annotation = ctx.annotations.begin();
+
+        for (; annotation != ctx.annotations.end(); ++annotation) {
+            // skip until we reach the end or the next annotated element
+            for (; annotated != ctx.annotated.end() && annotated->first <= annotation->first; ++annotated);
+
+            if (annotated == ctx.annotated.end())
+                break;
+
+            AddAnnotation visitor(annotation->second);
+            annotated->second.apply_visitor(visitor);
+        }
+
+        ctx.annotated.clear();
+        ctx.annotations.clear();
     }
 
     void initialize() {
@@ -599,6 +775,8 @@ namespace Insight {
 
         for (const Dwarf::CompilationUnit &cu : *dbg) {
             cu.get_die()->traverse_headless(Insight::build_metadata, &ctx);
+
+            process_annotations(ctx);
         }
 
     }
