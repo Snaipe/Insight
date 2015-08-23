@@ -30,17 +30,29 @@
 #include "data/internal.hh"
 #include "util/mangle.hh"
 
-#define STRUCT_OR_UNION_VISITOR(type, kind, operation) \
-    struct add_ ## kind : public boost::static_visitor<void> { \
-        void operator()(std::shared_ptr<StructInfoImpl>& info) const { operation; } \
-        void operator()(std::shared_ptr<UnionInfoImpl>& info) const { operation; } \
-        add_ ## kind (std::shared_ptr<type>& t) : ptr(t) {} \
+#define CONTAINER_VISITOR(type, Name, operation) \
+    struct Name : public boost::static_visitor<void> { \
+        template <typename T> \
+        void operator()(std::shared_ptr<T>& info) const { operation; } \
+        Name (std::shared_ptr<type>& t) : ptr(t) {} \
         std::shared_ptr<type>& ptr; \
     }
 
 namespace Insight {
 
-    using StructOrUnionMethod = boost::variant<std::shared_ptr<MethodInfoImpl>, std::shared_ptr<UnionMethodInfoImpl>>;
+    template <typename S>
+    struct get_superclass : public boost::static_visitor<std::shared_ptr<S>> {
+        template <typename T>
+        std::shared_ptr<S> operator()(std::shared_ptr<T>& info) const {
+            return std::dynamic_pointer_cast<S>(info);
+        }
+    };
+
+    CONTAINER_VISITOR(TypeInfo, add_type, info->add_type(ptr));
+    CONTAINER_VISITOR(FunctionInfo, add_function, info->add_function(ptr));
+    CONTAINER_VISITOR(VariableInfo, add_variable, info->add_variable(ptr));
+
+    using AnyMethod = boost::variant<std::shared_ptr<MethodInfoImpl>, std::shared_ptr<UnionMethodInfoImpl>>;
 
     using AnyAnnotated = boost::variant<
                 std::shared_ptr<StructInfoImpl>,
@@ -57,50 +69,16 @@ namespace Insight {
 
     using AnyContainer = boost::variant<
                 std::shared_ptr<StructInfoImpl>,
-                std::shared_ptr<UnionInfoImpl>
+                std::shared_ptr<UnionInfoImpl>,
+                std::shared_ptr<NamespaceInfoImpl>
             >;
 
     struct AddAnnotation : boost::static_visitor<void> {
         AddAnnotation(std::shared_ptr<AnnotationInfoImpl> annotation) : annotation_(annotation) {}
 
-        void operator()(std::shared_ptr<EnumInfoImpl>& type) {
-            type->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<StructInfoImpl>& type) {
-            type->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<UnionInfoImpl>& type) {
-            type->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<FieldInfoImpl>& field) {
-            field->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<MethodInfoImpl>& method) {
-            method->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<UnionFieldInfoImpl>& field) {
-            field->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<UnionMethodInfoImpl>& method) {
-            method->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<VariableInfoImpl>& var) {
-            var->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<FunctionInfoImpl>& fun) {
-            fun->add_annotation(annotation_);
-        }
-
-        void operator()(std::shared_ptr<NamespaceInfoImpl>& ns) {
-            ns->add_annotation(annotation_);
+        template <typename T>
+        void operator()(std::shared_ptr<T>& it) {
+            it->add_annotation(annotation_);
         }
 
         std::shared_ptr<AnnotationInfoImpl> annotation_;
@@ -110,9 +88,9 @@ namespace Insight {
     using OffsetMap = std::unordered_map<size_t, T>;
 
     using TypeOffsetMap = OffsetMap<std::shared_ptr<TypeInfo>>;
-    using MethodOffsetMap = OffsetMap<StructOrUnionMethod>;
+    using MethodOffsetMap = OffsetMap<AnyMethod>;
 
-    NamespaceInfoImpl ROOT_NAMESPACE("");
+    std::shared_ptr<NamespaceInfoImpl> ROOT_NAMESPACE = std::make_shared<NamespaceInfoImpl>("");
     std::unordered_map<std::string, std::shared_ptr<NamespaceInfo>> namespaces;
 
     std::shared_ptr<TypeInfo> VOID_TYPE = std::make_shared<PrimitiveTypeInfoImpl>("void", 0, PrimitiveKind::VOID, ROOT_NAMESPACE);
@@ -123,8 +101,7 @@ namespace Insight {
             , types()
             , methods()
             , anonymous_count(0)
-            , namespace_stack()
-            , type_stack()
+            , container_stack()
             , annotations()
         {}
 
@@ -132,8 +109,7 @@ namespace Insight {
         TypeOffsetMap types;
         MethodOffsetMap methods;
         int anonymous_count;
-        std::stack<NamespaceInfoImpl*> namespace_stack;
-        std::stack<AnyContainer> type_stack;
+        std::stack<AnyContainer> container_stack;
         std::map<size_t, std::shared_ptr<AnnotationInfoImpl>> annotations;
         std::map<size_t, AnyAnnotated> annotated;
     };
@@ -149,51 +125,19 @@ namespace Insight {
     }
 
     static void add_type_to_parent(BuildContext& ctx, std::shared_ptr<TypeInfo> ptr) {
-        STRUCT_OR_UNION_VISITOR(TypeInfo, type, info->add_type(ptr));
-
-        if (ctx.type_stack.empty())
-            ctx.namespace_stack.top()->add_type(ptr);
-        else {
-            auto visitor = add_type(ptr);
-            ctx.type_stack.top().apply_visitor(visitor);
-        }
+        boost::apply_visitor(add_type(ptr), ctx.container_stack.top());
     }
 
     static void add_func_to_parent(BuildContext& ctx, std::shared_ptr<FunctionInfo> ptr) {
-        STRUCT_OR_UNION_VISITOR(FunctionInfo, function, info->add_function(ptr));
-
-        if (ctx.type_stack.empty())
-            ctx.namespace_stack.top()->add_function(ptr);
-        else {
-            auto visitor = add_function(ptr);
-            ctx.type_stack.top().apply_visitor(visitor);
-        }
+        boost::apply_visitor(add_function(ptr), ctx.container_stack.top());
     }
 
     static void add_var_to_parent(BuildContext& ctx, std::shared_ptr<VariableInfo> ptr) {
-        STRUCT_OR_UNION_VISITOR(VariableInfo, variable, info->add_variable(ptr));
-
-        if (ctx.type_stack.empty())
-            ctx.namespace_stack.top()->add_variable(ptr);
-        else {
-            auto visitor = add_variable(ptr);
-            ctx.type_stack.top().apply_visitor(visitor);
-        }
+        boost::apply_visitor(add_variable(ptr), ctx.container_stack.top());
     }
 
-    static Container *get_parent(BuildContext& ctx) {
-        if (ctx.type_stack.empty())
-            return ctx.namespace_stack.top();
-        else {
-            auto& t = ctx.type_stack.top();
-            if (t.type() == typeid(std::shared_ptr<StructInfoImpl>)) {
-                return boost::get<std::shared_ptr<StructInfoImpl>>(t).get();
-            } else if (t.type() == typeid(std::shared_ptr<UnionInfoImpl>)) {
-                return boost::get<std::shared_ptr<UnionInfoImpl>>(t).get();
-            } else {
-                throw std::runtime_error("unexpected variant value");
-            }
-        }
+    static std::shared_ptr<Container> get_parent(BuildContext& ctx) {
+        return boost::apply_visitor(get_superclass<Container>(), ctx.container_stack.top());
     }
 
     std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
@@ -212,7 +156,7 @@ namespace Insight {
     }
 
     NamespaceInfo& root_namespace() {
-        return ROOT_NAMESPACE;
+        return *ROOT_NAMESPACE;
     }
 
     NamespaceInfo& namespace_of_(std::string name) {
@@ -256,16 +200,16 @@ namespace Insight {
                 {"complex long double",     PrimitiveKind::LONG_DOUBLE_COMPLEX},
         };
 
-        Container* parent = get_parent(ctx);
+        std::shared_ptr<Container> parent = get_parent(ctx);
 
         std::shared_ptr<TypeInfo> type;
         std::string name = die.get_name() ?: "";
 
-        const auto t = ctx.types.find(die.get_offset());
-        if (t != ctx.types.end()) {
-            type = t->second;
+        const auto it = ctx.types.find(die.get_offset());
+        if (it != ctx.types.end()) {
+            type = it->second;
             if (register_parent) {
-                MutableChild *child = dynamic_cast<MutableChild *>(&*type);
+                std::shared_ptr<MutableChild> child = std::dynamic_pointer_cast<MutableChild>(type);
                 child->set_parent(parent);
             }
         } else {
@@ -408,7 +352,7 @@ namespace Insight {
         const Dwarf::Tag &tag = die.get_tag();
         BuildContext& ctx = *static_cast<BuildContext*>(data);
 
-        StructInfoImpl& structinfo = *boost::get<std::shared_ptr<StructInfoImpl>>(ctx.type_stack.top());
+        std::shared_ptr<StructInfoImpl> info = boost::get<std::shared_ptr<StructInfoImpl>>(ctx.container_stack.top());
         switch (tag.get_id()) {
             case DW_TAG_member: {
                 std::string name(die.get_name() ?: "");
@@ -457,8 +401,8 @@ namespace Insight {
                     if (offset == static_cast<size_t>(-1))
                         break;
 
-                    std::shared_ptr<FieldInfoImpl> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, type, structinfo);
-                    structinfo.add_field(finfo);
+                    std::shared_ptr<FieldInfoImpl> finfo = std::make_shared<FieldInfoImpl>(die.get_name(), offset, type, info);
+                    info->add_field(finfo);
 
                     size_t off = get_src_location_offset(die);
                     if (off)
@@ -473,7 +417,7 @@ namespace Insight {
                 if (!return_type)
                     return_type = VOID_TYPE;
 
-                std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type, structinfo);
+                std::shared_ptr<MethodInfoImpl> method = std::make_shared<MethodInfoImpl>(die.get_name(), return_type, info);
 
                 std::unique_ptr<const Dwarf::Attribute> vattr = die.get_attribute(DW_AT_virtuality);
                 std::unique_ptr<const Dwarf::Attribute> vtabattr = die.get_attribute(DW_AT_vtable_elem_location);
@@ -484,9 +428,9 @@ namespace Insight {
                 }
 
                 Dwarf::Off off = die.get_offset();
-                ctx.methods.insert(std::make_pair(off, StructOrUnionMethod(method)));
+                ctx.methods.insert(std::make_pair(off, AnyMethod(method)));
 
-                structinfo.add_method(method);
+                info->add_method(method);
 
                 size_t foff = get_src_location_offset(die);
                 if (foff)
@@ -497,7 +441,7 @@ namespace Insight {
                 if (!super_type)
                     break;
 
-                structinfo.add_supertype(std::dynamic_pointer_cast<StructInfo>(super_type));
+                info->add_supertype(std::dynamic_pointer_cast<StructInfo>(super_type));
             } break;
             default: break;
         }
@@ -508,15 +452,15 @@ namespace Insight {
         const Dwarf::Tag &tag = die.get_tag();
         BuildContext& ctx = *static_cast<BuildContext*>(data);
 
-        UnionInfoImpl& unioninfo = *boost::get<std::shared_ptr<UnionInfoImpl>>(ctx.type_stack.top());
+        std::shared_ptr<UnionInfoImpl> info = boost::get<std::shared_ptr<UnionInfoImpl>>(ctx.container_stack.top());
         switch (tag.get_id()) {
             case DW_TAG_member: {
                 auto type = get_type_attr(ctx, die);
                 if (!type)
                     break;
 
-                std::shared_ptr<UnionFieldInfoImpl> finfo = std::make_shared<UnionFieldInfoImpl>(die.get_name(), type, unioninfo);
-                unioninfo.add_field(finfo);
+                std::shared_ptr<UnionFieldInfoImpl> finfo = std::make_shared<UnionFieldInfoImpl>(die.get_name(), type, info);
+                info->add_field(finfo);
 
                 size_t off = get_src_location_offset(die);
                 if (off)
@@ -530,12 +474,12 @@ namespace Insight {
                 if (!return_type)
                     return_type = VOID_TYPE;
 
-                std::shared_ptr<UnionMethodInfoImpl> method = std::make_shared<UnionMethodInfoImpl>(die.get_name(), return_type, unioninfo);
+                std::shared_ptr<UnionMethodInfoImpl> method = std::make_shared<UnionMethodInfoImpl>(die.get_name(), return_type, info);
 
                 Dwarf::Off off = die.get_offset();
-                ctx.methods.insert(std::make_pair(off, StructOrUnionMethod(method)));
+                ctx.methods.insert(std::make_pair(off, AnyMethod(method)));
 
-                unioninfo.add_method(method);
+                info->add_method(method);
 
                 size_t foff = get_src_location_offset(die);
                 if (foff)
@@ -613,7 +557,7 @@ namespace Insight {
         std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
         size_t size = !attrsize ? 0 : attrsize->as<Dwarf::Off>();
 
-        Container* parent = get_parent(ctx);
+        std::shared_ptr<Container> parent = get_parent(ctx);
 
         std::string name = die.get_name() ?: ("anonymous#" + std::to_string(ctx.anonymous_count++));
         std::shared_ptr<EnumInfoImpl> info = std::make_shared<EnumInfoImpl>(name, size);
@@ -635,31 +579,31 @@ namespace Insight {
         std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
         size_t size = !attrsize ? 0 : attrsize->as<Dwarf::Off>();
 
-        Container* parent = get_parent(ctx);
+        std::shared_ptr<Container> parent = get_parent(ctx);
 
         std::string name = die.get_name() ?: ("anonymous#" + std::to_string(ctx.anonymous_count++));
-        std::shared_ptr<StructInfoImpl> structinfo = std::make_shared<StructInfoImpl>(name, size);
-        ctx.types[die.get_offset()] = structinfo;
+        std::shared_ptr<StructInfoImpl> info = std::make_shared<StructInfoImpl>(name, size);
+        ctx.types[die.get_offset()] = info;
 
         if (register_parent)
-            structinfo->set_parent(parent);
+            info->set_parent(parent);
 
-        ctx.type_stack.push(AnyContainer(structinfo));
+        ctx.container_stack.push(AnyContainer(info));
         die.traverse_headless(handle_member, &ctx);
-        ctx.type_stack.pop();
+        ctx.container_stack.pop();
 
         size_t off = get_src_location_offset(die);
         if (off)
-            ctx.annotated[off] = AnyAnnotated(structinfo);
+            ctx.annotated[off] = AnyAnnotated(info);
 
-        return structinfo;
+        return info;
     }
 
     static std::shared_ptr<TypeInfo> build_union_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent) {
         std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
         size_t size = !attrsize ? 0 : attrsize->as<Dwarf::Off>();
 
-        Container* parent = get_parent(ctx);
+        std::shared_ptr<Container> parent = get_parent(ctx);
 
         std::string name = die.get_name() ?: ("anonymous#" + std::to_string(ctx.anonymous_count++));
         std::shared_ptr<UnionInfoImpl> info = std::make_shared<UnionInfoImpl>(name, size);
@@ -668,9 +612,9 @@ namespace Insight {
         if (register_parent)
             info->set_parent(parent);
 
-        ctx.type_stack.push(AnyContainer(info));
+        ctx.container_stack.push(AnyContainer(info));
         die.traverse_headless(handle_union_member, &ctx);
-        ctx.type_stack.pop();
+        ctx.container_stack.pop();
 
         size_t off = get_src_location_offset(die);
         if (off)
@@ -715,23 +659,23 @@ namespace Insight {
         const Dwarf::Tag &tag = die.get_tag();
         BuildContext& ctx = *static_cast<BuildContext*>(data);
 
-        Container* parent = get_parent(ctx);
+        std::shared_ptr<Container> parent = get_parent(ctx);
 
         switch (tag.get_id()) {
             case DW_TAG_namespace: {
-                NamespaceInfoImpl* parentns = ctx.namespace_stack.top();
+                std::shared_ptr<NamespaceInfoImpl> parentns = boost::get<std::shared_ptr<NamespaceInfoImpl>>(ctx.container_stack.top());
                 std::shared_ptr<NamespaceInfoImpl> ns;
                 auto it = parentns->nested_namespaces_.find(die.get_name());
                 if (it != parentns->nested_namespaces_.end()) {
                     ns = std::dynamic_pointer_cast<NamespaceInfoImpl>(it->second);
                 } else {
-                    ns = std::make_shared<NamespaceInfoImpl>(die.get_name(), *parent);
+                    ns = std::make_shared<NamespaceInfoImpl>(die.get_name(), parent);
                     parentns->add_nested_namespace(ns);
                     namespaces[ns->fullname()] = ns;
                 }
-                ctx.namespace_stack.push(&*ns);
+                ctx.container_stack.push(AnyContainer(ns));
                 die.traverse_headless(build_metadata, data);
-                ctx.namespace_stack.pop();
+                ctx.container_stack.pop();
 
                 size_t off = get_src_location_offset(die);
                 if (off)
@@ -773,7 +717,7 @@ namespace Insight {
                     if (!return_type)
                         return_type = VOID_TYPE;
 
-                    std::shared_ptr<FunctionInfoImpl> func = std::make_shared<FunctionInfoImpl>(die.get_name(), return_type, *parent);
+                    std::shared_ptr<FunctionInfoImpl> func = std::make_shared<FunctionInfoImpl>(die.get_name(), return_type, parent);
 
                     add_func_to_parent(ctx, func);
 
@@ -848,7 +792,7 @@ namespace Insight {
                     size_t loc = locattr->as<Dwarf::Off>();
                     void *addr = reinterpret_cast<void*>(loc);
 
-                    auto var = std::make_shared<VariableInfoImpl>(name, addr, type, *parent);
+                    auto var = std::make_shared<VariableInfoImpl>(name, addr, type, parent);
 
                     add_var_to_parent(ctx, var);
 
@@ -887,7 +831,7 @@ namespace Insight {
         type_registry["void"] = VOID_TYPE;
 
         BuildContext ctx(*dbg);
-        ctx.namespace_stack.push(&ROOT_NAMESPACE);
+        ctx.container_stack.push(AnyContainer(ROOT_NAMESPACE));
 
         for (const Dwarf::CompilationUnit &cu : *dbg) {
             cu.get_die()->traverse_headless(Insight::build_metadata, &ctx);

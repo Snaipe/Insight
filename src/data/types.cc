@@ -23,7 +23,7 @@ namespace Insight {
 
     // MethodInfo
 
-    MethodInfoImpl::MethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
+    MethodInfoImpl::MethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, std::shared_ptr<Container> parent)
         : CallableBase<MethodInfo>(name, return_type, parent)
         , virtual_(false)
         , vtab_index_(0)
@@ -42,19 +42,19 @@ namespace Insight {
         vtab_index_ = index;
     }
 
-    UnionMethodInfoImpl::UnionMethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
+    UnionMethodInfoImpl::UnionMethodInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, std::shared_ptr<Container> parent)
         : CallableBase<UnionMethodInfo>(name, return_type, parent)
     {}
 
     // FunctionInfo
 
-    FunctionInfoImpl::FunctionInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, Container& parent)
+    FunctionInfoImpl::FunctionInfoImpl(char const *name, std::weak_ptr<TypeInfo> return_type, std::shared_ptr<Container> parent)
             : CallableBase<FunctionInfo>(name, return_type, parent)
     {}
 
     // FieldInfo
 
-    FieldInfoImpl::FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type, Container& parent)
+    FieldInfoImpl::FieldInfoImpl(const char *name, size_t offset, std::weak_ptr<TypeInfo> type, std::shared_ptr<Container> parent)
         : TypedBase<FieldInfo>(name, type, parent)
         , offset_(offset)
     {}
@@ -63,13 +63,13 @@ namespace Insight {
         return offset_;
     }
 
-    UnionFieldInfoImpl::UnionFieldInfoImpl(const char *name, std::weak_ptr<TypeInfo> type, Container &parent)
+    UnionFieldInfoImpl::UnionFieldInfoImpl(const char *name, std::weak_ptr<TypeInfo> type, std::shared_ptr<Container> parent)
         : TypedBase<UnionFieldInfo>(name, type, parent)
     {}
 
     // VariableInfo
 
-    VariableInfoImpl::VariableInfoImpl(const char *name, void* address, std::weak_ptr<TypeInfo> type, Container& parent)
+    VariableInfoImpl::VariableInfoImpl(const char *name, void* address, std::weak_ptr<TypeInfo> type, std::shared_ptr<Container> parent)
         : TypedBase<VariableInfo>(name, type, parent)
         , address_(address)
     {}
@@ -89,7 +89,7 @@ namespace Insight {
     {}
 
     // NamespaceInfo
-    NamespaceInfoImpl::NamespaceInfoImpl(const char* name, Container& parent)
+    NamespaceInfoImpl::NamespaceInfoImpl(const char* name, std::shared_ptr<Container> parent)
         : ChildBase(std::string(name), parent)
     {}
 
@@ -103,7 +103,7 @@ namespace Insight {
 
     // PrimitiveTypeInfo
 
-    PrimitiveTypeInfoImpl::PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind, Container& parent)
+    PrimitiveTypeInfoImpl::PrimitiveTypeInfoImpl(const char* name, size_t size, PrimitiveKind kind, std::shared_ptr<Container> parent)
         : TypeBase(std::string(name), size, parent)
         , kind_(kind)
     {}
@@ -196,7 +196,7 @@ namespace Insight {
     {}
 
     AnnotationInfoImpl::AnnotationInfoImpl(std::string name, void* data, std::weak_ptr<TypeInfo> type)
-        : TypedBase<AnnotationInfo>(name, type)
+        : TypedBase(name, type)
         , data_(data)
     {}
 
