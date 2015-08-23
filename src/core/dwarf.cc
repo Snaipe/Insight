@@ -208,10 +208,14 @@ namespace Insight {
                 } break;
                 case DW_TAG_unspecified_type: {
                     auto t = std::make_shared<UnspecifiedTypeInfoImpl>(die.get_name());
+                    ctx.types[die.get_offset()] = t;
 
                     // C++11 requires sizeof(nullptr_t) == sizeof(void*)
                     if (name == "decltype(nullptr)")
                         t->size_ = sizeof(void*);
+
+                    if (register_parent)
+                        t->set_parent(parent);
 
                     type = t;
                 } break;
