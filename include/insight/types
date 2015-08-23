@@ -326,6 +326,30 @@ namespace Insight {
         }
     };
 
+    class EnumConstantInfo;
+
+    class EnumInfo : virtual public TypeInfo {
+    public:
+        virtual const Range<EnumConstantInfo> values() const = 0;
+        virtual EnumConstantInfo& value(std::string name) const = 0;
+
+        inline virtual bool is_compatible(const TypeInfo& type) const {
+            return *this == type;
+        }
+    };
+
+    class EnumConstantInfo : virtual public Named {
+    public:
+        virtual EnumInfo& type() const = 0;
+        virtual void* data_ptr() const = 0;
+
+        template<typename V>
+        V& get() const {
+            assert(type_of(V).is_compatible(type()));
+            return *reinterpret_cast<V*>(data_ptr());
+        }
+    };
+
     class PointerTypeInfo : virtual public TypeInfo {
     public:
         virtual TypeInfo& pointed_type() const = 0;

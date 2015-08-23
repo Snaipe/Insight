@@ -40,12 +40,12 @@
 
 namespace Insight {
 
-    using StructOrUnion = boost::variant<std::shared_ptr<StructInfoImpl>, std::shared_ptr<UnionInfoImpl>>;
     using StructOrUnionMethod = boost::variant<std::shared_ptr<MethodInfoImpl>, std::shared_ptr<UnionMethodInfoImpl>>;
 
     using AnyAnnotated = boost::variant<
                 std::shared_ptr<StructInfoImpl>,
                 std::shared_ptr<UnionInfoImpl>,
+                std::shared_ptr<EnumInfoImpl>,
                 std::shared_ptr<VariableInfoImpl>,
                 std::shared_ptr<FunctionInfoImpl>,
                 std::shared_ptr<MethodInfoImpl>,
@@ -55,8 +55,17 @@ namespace Insight {
                 std::shared_ptr<NamespaceInfoImpl>
             >;
 
+    using AnyContainer = boost::variant<
+                std::shared_ptr<StructInfoImpl>,
+                std::shared_ptr<UnionInfoImpl>
+            >;
+
     struct AddAnnotation : boost::static_visitor<void> {
         AddAnnotation(std::shared_ptr<AnnotationInfoImpl> annotation) : annotation_(annotation) {}
+
+        void operator()(std::shared_ptr<EnumInfoImpl>& type) {
+            type->add_annotation(annotation_);
+        }
 
         void operator()(std::shared_ptr<StructInfoImpl>& type) {
             type->add_annotation(annotation_);
@@ -124,7 +133,7 @@ namespace Insight {
         MethodOffsetMap methods;
         int anonymous_count;
         std::stack<NamespaceInfoImpl*> namespace_stack;
-        std::stack<StructOrUnion> type_stack;
+        std::stack<AnyContainer> type_stack;
         std::map<size_t, std::shared_ptr<AnnotationInfoImpl>> annotations;
         std::map<size_t, AnyAnnotated> annotated;
     };
@@ -222,6 +231,7 @@ namespace Insight {
     static std::shared_ptr<TypeInfo> get_type_attr(BuildContext &ctx, Dwarf::Die &die);
     static std::shared_ptr<TypeInfo> build_struct_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent);
     static std::shared_ptr<TypeInfo> build_union_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent);
+    static std::shared_ptr<TypeInfo> build_enum_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent);
 
     static std::shared_ptr<TypeInfo> build_type(Dwarf::Die& die, BuildContext& ctx, bool register_parent) {
         static std::unordered_map<std::string, PrimitiveKind> primitiveKinds {
@@ -300,6 +310,9 @@ namespace Insight {
                 } break;
                 case DW_TAG_union_type: {
                     type = build_union_type(die, ctx, register_parent);
+                } break;
+                case DW_TAG_enumeration_type: {
+                    type = build_enum_type(die, ctx, register_parent);
                 } break;
                 case DW_TAG_pointer_type: {
                     std::shared_ptr<PointerTypeInfoImpl> t = std::make_shared<PointerTypeInfoImpl>();
@@ -533,6 +546,91 @@ namespace Insight {
         return Dwarf::Die::TraversalResult::SKIP;
     }
 
+    static Dwarf::Die::TraversalResult handle_enum_member(Dwarf::Die &die, void *data) {
+        const Dwarf::Tag &tag = die.get_tag();
+
+        std::shared_ptr<EnumInfoImpl> info = *static_cast<std::shared_ptr<EnumInfoImpl>*>(data);
+        switch (tag.get_id()) {
+            case DW_TAG_enumerator: {
+                std::unique_ptr<const Dwarf::Attribute> constattr = die.get_attribute(DW_AT_const_value);
+                if (!constattr || !die.get_name())
+                    break;
+
+                void* addr;
+                switch (constattr->form()) {
+                    case DW_FORM_block1:
+                    case DW_FORM_block2:
+                    case DW_FORM_block4:
+                    case DW_FORM_block: {
+                        Dwarf::Block* block = constattr->as<Dwarf::Block*>();
+
+                        // we leak the block because we need it alive until the program ends
+                        addr = std::malloc(block->bl_len);
+                        std::memcpy(addr, block->bl_data, block->bl_len);
+                        std::shared_ptr<const Dwarf::Debug> dbg = die.get_debug();
+                        if (dbg)
+                            dbg->dealloc(block);
+                    } break;
+                    default: {
+                        Dwarf::Unsigned val = constattr->as<Dwarf::Unsigned>();
+
+                        // we leak the block because we need it alive until the program ends
+                        switch (info->size_of()) {
+                            case 8: {
+                                uint64_t* i = static_cast<uint64_t*>(std::malloc(info->size_of()));
+                                *i = val;
+                                addr = i;
+                            } break;
+                            case 4: {
+                                uint32_t* i = static_cast<uint32_t*>(std::malloc(info->size_of()));
+                                *i = val;
+                                addr = i;
+                            } break;
+                            case 3: {
+                                uint16_t* i = static_cast<uint16_t*>(std::malloc(info->size_of()));
+                                *i = val;
+                                addr = i;
+                            } break;
+                            case 1: {
+                                uint8_t* i = static_cast<uint8_t*>(std::malloc(info->size_of()));
+                                *i = val;
+                                addr = i;
+                            } break;
+                            default: break;
+                        }
+                    } break;
+                }
+
+                std::shared_ptr<EnumInfo> iface = info;
+                info->add_value(std::make_shared<EnumConstantInfoImpl>(die.get_name(), addr, iface));
+            } break;
+            default: break;
+        }
+        return Dwarf::Die::TraversalResult::SKIP;
+    }
+
+    static std::shared_ptr<TypeInfo> build_enum_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent) {
+        std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
+        size_t size = !attrsize ? 0 : attrsize->as<Dwarf::Off>();
+
+        Container* parent = get_parent(ctx);
+
+        std::string name = die.get_name() ?: ("anonymous#" + std::to_string(ctx.anonymous_count++));
+        std::shared_ptr<EnumInfoImpl> info = std::make_shared<EnumInfoImpl>(name, size);
+        ctx.types[die.get_offset()] = info;
+
+        if (register_parent)
+            info->set_parent(parent);
+
+        die.traverse_headless(handle_enum_member, &info);
+
+        size_t off = get_src_location_offset(die);
+        if (off)
+            ctx.annotated[off] = AnyAnnotated(info);
+
+        return info;
+    }
+
     static std::shared_ptr<TypeInfo> build_struct_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent) {
         std::unique_ptr<const Dwarf::Attribute> attrsize = die.get_attribute(DW_AT_byte_size);
         size_t size = !attrsize ? 0 : attrsize->as<Dwarf::Off>();
@@ -546,7 +644,7 @@ namespace Insight {
         if (register_parent)
             structinfo->set_parent(parent);
 
-        ctx.type_stack.push(StructOrUnion(structinfo));
+        ctx.type_stack.push(AnyContainer(structinfo));
         die.traverse_headless(handle_member, &ctx);
         ctx.type_stack.pop();
 
@@ -570,7 +668,7 @@ namespace Insight {
         if (register_parent)
             info->set_parent(parent);
 
-        ctx.type_stack.push(StructOrUnion(info));
+        ctx.type_stack.push(AnyContainer(info));
         die.traverse_headless(handle_union_member, &ctx);
         ctx.type_stack.pop();
 
@@ -646,6 +744,7 @@ namespace Insight {
             case DW_TAG_structure_type:
             case DW_TAG_union_type:
             case DW_TAG_pointer_type:
+            case DW_TAG_enumeration_type:
             case DW_TAG_typedef: {
                 std::shared_ptr<TypeInfo> type = build_type(die, ctx, true);
                 if (type) {
@@ -655,8 +754,9 @@ namespace Insight {
                     type_registry[unprefixed_name] = type;
                     // Special cases for easy lookup in the C language
                     switch (tag.get_id()) {
-                        case DW_TAG_structure_type: type_registry["struct " + unprefixed_name] = type; break;
-                        case DW_TAG_union_type:     type_registry["union "  + unprefixed_name] = type; break;
+                        case DW_TAG_structure_type:     type_registry["struct " + unprefixed_name] = type; break;
+                        case DW_TAG_union_type:         type_registry["union "  + unprefixed_name] = type; break;
+                        case DW_TAG_enumeration_type:   type_registry["enum "   + unprefixed_name] = type; break;
                         default: break;
                     }
                 }

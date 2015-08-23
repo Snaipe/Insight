@@ -167,6 +167,7 @@ namespace Insight {
     MIXIN(field, UnionFieldInfo, UnionFieldInfo);
     MIXIN(nested_namespace, NamespaceInfo, NamespaceInfo);
     MIXIN(type, TypeInfo, TypeInfo);
+    MIXIN(value, EnumConstantInfo, EnumConstantInfo);
     WEAK_MIXIN(supertype, Supertype, StructInfo);
 
     template <typename T>
@@ -354,6 +355,21 @@ namespace Insight {
 
         void* data_;
         std::weak_ptr<Annotated> annotated_;
+    };
+
+    class EnumConstantInfoImpl : public NameBase<EnumConstantInfo> {
+    public:
+        EnumConstantInfoImpl(const char* name, void *data, std::shared_ptr<EnumInfo>& type);
+        virtual void* data_ptr() const override;
+        virtual EnumInfo& type() const override;
+
+        void* data_;
+        std::weak_ptr<EnumInfo> type_;
+    };
+
+    class EnumInfoImpl : public TypeBase<EnumConstantInfoContainerBase<EnumInfo>> {
+    public:
+        EnumInfoImpl(std::string name, size_t size);
     };
 }
 

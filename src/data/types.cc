@@ -211,4 +211,22 @@ namespace Insight {
     void AnnotationInfoImpl::set_annotated(std::shared_ptr<Annotated> &annotated) {
         annotated_ = annotated;
     }
+
+    EnumConstantInfoImpl::EnumConstantInfoImpl(const char *name, void *data, std::shared_ptr<EnumInfo> &type)
+        : NameBase(std::string(name))
+        , data_(data)
+        , type_(type)
+    {}
+
+    void* EnumConstantInfoImpl::data_ptr() const {
+        return data_;
+    }
+
+    EnumInfo& EnumConstantInfoImpl::type() const {
+        return *type_.lock();
+    }
+
+    EnumInfoImpl::EnumInfoImpl(std::string name, size_t size)
+        : TypeBase(name, size)
+    {}
 }
