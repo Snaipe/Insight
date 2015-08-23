@@ -648,8 +648,18 @@ namespace Insight {
             case DW_TAG_pointer_type:
             case DW_TAG_typedef: {
                 std::shared_ptr<TypeInfo> type = build_type(die, ctx, true);
-                if (type)
+                if (type) {
+                    std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
+
                     type_registry[type->fullname()] = type;
+                    type_registry[unprefixed_name] = type;
+                    // Special cases for easy lookup in the C language
+                    switch (tag.get_id()) {
+                        case DW_TAG_structure_type: type_registry["struct " + unprefixed_name] = type; break;
+                        case DW_TAG_union_type:     type_registry["union "  + unprefixed_name] = type; break;
+                        default: break;
+                    }
+                }
             } break;
             case DW_TAG_subprogram: {
                 std::unique_ptr<const Dwarf::Attribute> attrspec = die.get_attribute(DW_AT_specification);
