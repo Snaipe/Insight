@@ -7,12 +7,25 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror -g -std=c11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -g -std=c++14")
 
 set(SOURCE_FILES
-    src/core/dwarf.cc
     src/data/types.cc
     src/data/internal.hh
     src/cbridge/bridge.cc
     src/util/mangle.hh
     src/util/mangle.cc
+    src/core/dwarf/dwarf.cc
+    src/core/dwarf/dwarf.hh
+    src/core/dwarf/struct.cc
+    src/core/dwarf/struct.hh
+    src/core/dwarf/type.cc
+    src/core/dwarf/type.hh
+    src/core/dwarf/enum.cc
+    src/core/dwarf/enum.hh
+    src/core/dwarf/union.cc
+    src/core/dwarf/union.hh
+    src/core/dwarf/annotation.cc
+    src/core/dwarf/annotation.hh
+    src/core/dwarf/inference.cc
+    src/core/dwarf/inference.hh
 )
 set(INTERFACE_FILES
     include/insight/types.h
