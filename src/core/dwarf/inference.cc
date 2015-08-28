@@ -1,38 +1,35 @@
 #include "inference.hh"
-#include "type.hh"
 
 namespace Insight {
 
-    Dwarf::Die::TraversalResult infer_types(Dwarf::Die &die, void *data) {
-        const Dwarf::Tag &tag = die.get_tag();
-        BuildContext& ctx = *static_cast<BuildContext*>(data);
+    Result TypeInferer::operator()(Dwarf::TaggedDie<DW_TAG_variable>& die) {
+        const char *name = die.get_name();
+        if (!name)
+            return Result::SKIP;
 
-        switch (tag.get_id()) {
-            case DW_TAG_variable: {
-                const char *name = die.get_name();
-                if (!name)
-                    break;
+        if (std::string(name) != "insight_typeof_dummy")
+            return Result::SKIP;
 
-                if (std::string(name) != "insight_typeof_dummy")
-                    break;
+        auto type = tb.get_type_attr(die);
+        if (!type)
+            return Result::SKIP;
 
-                auto type = get_type_attr(ctx, die);
-                if (!type)
-                    break;
+        std::unique_ptr<const Dwarf::Attribute> locattr = die.get_attribute(DW_AT_location);
+        if (!locattr)
+            return Result::SKIP;
 
-                std::unique_ptr<const Dwarf::Attribute> locattr = die.get_attribute(DW_AT_location);
-                if (!locattr)
-                    break;
+        size_t loc = locattr->as<Dwarf::Off>();
 
-                size_t loc = locattr->as<Dwarf::Off>();
+        auto inferred_type = std::dynamic_pointer_cast<PointerTypeInfoImpl>(type);
+        inferred_type_registry[loc] = inferred_type->type_.lock();
 
-                auto inferred_type = std::dynamic_pointer_cast<PointerTypeInfoImpl>(type);
-                inferred_type_registry[loc] = inferred_type->type_.lock();
-            }
-            case DW_TAG_lexical_block: return Dwarf::Die::TraversalResult::TRAVERSE;
-            default: break;
-        }
-        return Dwarf::Die::TraversalResult::SKIP;
+        return Result::SKIP;
     }
+
+    Result TypeInferer::operator()([[gnu::unused]] Dwarf::TaggedDie<DW_TAG_lexical_block>& die) {
+        return Result::TRAVERSE;
+    }
+
+    TypeInferer::TypeInferer(TypeBuilder& tb) : tb(tb) {}
 
 }

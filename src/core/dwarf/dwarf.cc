@@ -82,150 +82,215 @@ namespace Insight {
         return static_cast<size_t>(-1);
     }
 
-    static Dwarf::Die::TraversalResult build_metadata(Dwarf::Die &die, void *data) {
-        const Dwarf::Tag &tag = die.get_tag();
-        BuildContext& ctx = *static_cast<BuildContext*>(data);
+    struct DieVisitor : public Dwarf::DefaultDieVisitor {
 
-        std::shared_ptr<Container> parent = get_parent(ctx);
+        using Result = Dwarf::Die::TraversalResult;
 
-        switch (tag.get_id()) {
-            case DW_TAG_namespace: {
-                std::shared_ptr<NamespaceInfoImpl> parentns = boost::get<std::shared_ptr<NamespaceInfoImpl>>(ctx.container_stack.top());
-                std::shared_ptr<NamespaceInfoImpl> ns;
-                auto it = parentns->nested_namespaces_.find(die.get_name());
-                if (it != parentns->nested_namespaces_.end()) {
-                    ns = std::dynamic_pointer_cast<NamespaceInfoImpl>(it->second);
-                } else {
-                    ns = std::make_shared<NamespaceInfoImpl>(die.get_name(), parent);
-                    parentns->add_nested_namespace(ns);
-                    namespaces[ns->fullname()] = ns;
-                }
-                ctx.container_stack.push(AnyContainer(ns));
-                die.traverse_headless(build_metadata, data);
-                ctx.container_stack.pop();
+        DieVisitor(BuildContext& ctx, TypeBuilder& tb) : ctx(ctx), tb(tb) {}
 
-                mark_element_line(ctx, die, ns);
-            } return Dwarf::Die::TraversalResult::SKIP;
-            case DW_TAG_unspecified_type:
-            case DW_TAG_const_type:
-            case DW_TAG_base_type:
-            case DW_TAG_class_type:
-            case DW_TAG_structure_type:
-            case DW_TAG_union_type:
-            case DW_TAG_pointer_type:
-            case DW_TAG_enumeration_type:
-            case DW_TAG_typedef: {
-                std::shared_ptr<TypeInfo> type = build_type(die, ctx, true);
-                if (type) {
-                    std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
+        Result operator()(Dwarf::TaggedDie<DW_TAG_namespace>& die) {
+            std::shared_ptr<Container> parent = get_parent(ctx);
 
-                    type_registry[type->fullname()] = type;
-                    type_registry[unprefixed_name] = type;
-                    // Special cases for easy lookup in the C language
-                    switch (tag.get_id()) {
-                        case DW_TAG_structure_type:     type_registry["struct " + unprefixed_name] = type; break;
-                        case DW_TAG_union_type:         type_registry["union "  + unprefixed_name] = type; break;
-                        case DW_TAG_enumeration_type:   type_registry["enum "   + unprefixed_name] = type; break;
-                        default: break;
-                    }
-                }
-            } break;
-            case DW_TAG_subprogram: {
-                std::unique_ptr<const Dwarf::Attribute> attrspec = die.get_attribute(DW_AT_specification);
-                if (!attrspec) {
-                    die.traverse_headless(infer_types, &ctx);
+            std::shared_ptr<NamespaceInfoImpl> parentns = boost::get<std::shared_ptr<NamespaceInfoImpl>>(ctx.container_stack.top());
+            std::shared_ptr<NamespaceInfoImpl> ns;
+            auto it = parentns->nested_namespaces_.find(die.get_name());
+            if (it != parentns->nested_namespaces_.end()) {
+                ns = std::dynamic_pointer_cast<NamespaceInfoImpl>(it->second);
+            } else {
+                ns = std::make_shared<NamespaceInfoImpl>(die.get_name(), parent);
+                parentns->add_nested_namespace(ns);
+                namespaces[ns->fullname()] = ns;
+            }
+            ctx.container_stack.push(AnyContainer(ns));
+            die.visit_headless(*this);
+            ctx.container_stack.pop();
 
-                    if (!die.get_name()) // ignore unnamed functions
-                        break;
+            mark_element_line(ctx, die, ns);
 
-                    auto return_type = get_type_attr(ctx, die);
-                    if (!return_type)
-                        return_type = VOID_TYPE;
-
-                    std::shared_ptr<FunctionInfoImpl> func = std::make_shared<FunctionInfoImpl>(die.get_name(), return_type, parent);
-
-                    add_func_to_parent(ctx, func);
-
-                    std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
-                    if (!attraddr)
-                        break;
-                    Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
-
-                    func->address_ = reinterpret_cast<void*>(addr);
-
-                    mark_element_line(ctx, die, func);
-                } else {
-                    Dwarf::Off off = attrspec->as<Dwarf::Off>();
-                    MethodOffsetMap::iterator it = ctx.methods.find(off);
-                    if (it != ctx.methods.end()) {
-                        struct AddMethod : boost::static_visitor<void> {
-                            void operator()(std::shared_ptr<MethodInfoImpl>& method) {
-                                if (method->is_virtual())
-                                    return;
-
-                                std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
-                                if (!attraddr)
-                                    return;
-                                Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
-
-                                method->address_ = reinterpret_cast<void*>(addr);
-                            }
-
-                            void operator()(std::shared_ptr<UnionMethodInfoImpl>& method) {
-                                std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
-                                if (!attraddr)
-                                    return;
-                                Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
-
-                                method->address_ = reinterpret_cast<void*>(addr);
-                            }
-
-                            AddMethod(Dwarf::Die& d) : die(d) {}
-
-                            Dwarf::Die& die;
-                        };
-
-                        AddMethod visitor(die);
-                        it->second.apply_visitor(visitor);
-                    }
-                }
-            } break;
-            case DW_TAG_variable: {
-                const char *name = die.get_name();
-                auto locattr = die.get_attribute(DW_AT_location);
-                if (!name || !locattr)
-                    break;
-
-                auto type = get_type_attr(ctx, die);
-                if (!type)
-                    break;
-
-                std::string prefix("insight_annotation");
-                if (std::string(name).substr(0, prefix.size()) == prefix) {
-                    size_t loc = locattr->as<Dwarf::Off>();
-                    void *addr = reinterpret_cast<void*>(loc);
-
-                    std::shared_ptr<ConstTypeInfo> constType = std::dynamic_pointer_cast<ConstTypeInfo>(type);
-                    std::string annotationName = constType ? constType->type().name() : type->name();
-
-                    size_t off = get_src_location_offset(die);
-                    if (off)
-                        ctx.annotations[off] = std::make_shared<AnnotationInfoImpl>(annotationName, addr, type);
-                } else {
-                    size_t loc = locattr->as<Dwarf::Off>();
-                    void *addr = reinterpret_cast<void*>(loc);
-
-                    auto var = std::make_shared<VariableInfoImpl>(name, addr, type, parent);
-
-                    add_var_to_parent(ctx, var);
-
-                    mark_element_line(ctx, die, var);
-                }
-            } break;
-            default: break;
+            return Result::SKIP;
         }
-        return Dwarf::Die::TraversalResult::SKIP;
-    }
+
+        std::shared_ptr<TypeInfo> handle_type(Dwarf::Die& die) {
+            Dwarf::AnyDie anydie(die);
+
+            std::shared_ptr<TypeInfo> type = tb.build_type(anydie, true);
+            if (type) {
+                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
+
+                type_registry[type->fullname()] = type;
+                type_registry[unprefixed_name] = type;
+            }
+            return type;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_unspecified_type>& die) {
+            handle_type(die);
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_const_type>& die) {
+            handle_type(die);
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_base_type>& die) {
+            handle_type(die);
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_class_type>& die) {
+            handle_type(die);
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_structure_type>& die) {
+            std::shared_ptr<TypeInfo> type = handle_type(die);
+            if (type) {
+                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
+                type_registry["struct " + unprefixed_name] = type;
+            }
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_union_type>& die) {
+            std::shared_ptr<TypeInfo> type = handle_type(die);
+            if (type) {
+                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
+                type_registry["union " + unprefixed_name] = type;
+            }
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_enumeration_type>& die) {
+            std::shared_ptr<TypeInfo> type = handle_type(die);
+            if (type) {
+                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
+                type_registry["enum " + unprefixed_name] = type;
+            }
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_pointer_type>& die) {
+            handle_type(die);
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_typedef>& die) {
+            handle_type(die);
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_subprogram>& die) {
+            std::shared_ptr<Container> parent = get_parent(ctx);
+
+            std::unique_ptr<const Dwarf::Attribute> attrspec = die.get_attribute(DW_AT_specification);
+            if (!attrspec) {
+                TypeInferer inferer(tb);
+
+                die.visit_headless(inferer);
+
+                if (!die.get_name()) // ignore unnamed functions
+                    return Result::SKIP;
+
+                auto return_type = tb.get_type_attr(die);
+                if (!return_type)
+                    return_type = VOID_TYPE;
+
+                std::shared_ptr<FunctionInfoImpl> func = std::make_shared<FunctionInfoImpl>(die.get_name(), return_type, parent);
+
+                add_func_to_parent(ctx, func);
+
+                std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
+                if (!attraddr)
+                    return Result::SKIP;
+
+                Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
+
+                func->address_ = reinterpret_cast<void*>(addr);
+
+                mark_element_line(ctx, die, func);
+            } else {
+                Dwarf::Off off = attrspec->as<Dwarf::Off>();
+                MethodOffsetMap::iterator it = ctx.methods.find(off);
+                if (it != ctx.methods.end()) {
+                    struct AddMethod : boost::static_visitor<void> {
+                        void operator()(std::shared_ptr<MethodInfoImpl>& method) {
+                            if (method->is_virtual())
+                                return;
+
+                            std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
+                            if (!attraddr)
+                                return;
+                            Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
+
+                            method->address_ = reinterpret_cast<void*>(addr);
+                        }
+
+                        void operator()(std::shared_ptr<UnionMethodInfoImpl>& method) {
+                            std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
+                            if (!attraddr)
+                                return;
+                            Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
+
+                            method->address_ = reinterpret_cast<void*>(addr);
+                        }
+
+                        AddMethod(Dwarf::Die& d) : die(d) {}
+
+                        Dwarf::Die& die;
+                    };
+
+                    AddMethod visitor(die);
+                    it->second.apply_visitor(visitor);
+                }
+            }
+            return Result::SKIP;
+        }
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_variable>& die) {
+            std::shared_ptr<Container> parent = get_parent(ctx);
+
+            const char *name = die.get_name();
+            auto locattr = die.get_attribute(DW_AT_location);
+            if (!name || !locattr)
+                return Result::SKIP;
+
+            auto type = tb.get_type_attr(die);
+            if (!type)
+                return Result::SKIP;
+
+            std::string prefix("insight_annotation");
+            if (std::string(name).substr(0, prefix.size()) == prefix) {
+                size_t loc = locattr->as<Dwarf::Off>();
+                void *addr = reinterpret_cast<void*>(loc);
+
+                std::shared_ptr<ConstTypeInfo> constType = std::dynamic_pointer_cast<ConstTypeInfo>(type);
+                std::string annotationName = constType ? constType->type().name() : type->name();
+
+                size_t off = get_src_location_offset(die);
+                if (off)
+                    ctx.annotations[off] = std::make_shared<AnnotationInfoImpl>(annotationName, addr, type);
+            } else {
+                size_t loc = locattr->as<Dwarf::Off>();
+                void *addr = reinterpret_cast<void*>(loc);
+
+                auto var = std::make_shared<VariableInfoImpl>(name, addr, type, parent);
+
+                add_var_to_parent(ctx, var);
+
+                mark_element_line(ctx, die, var);
+            }
+            return Result::SKIP;
+        }
+
+        template <typename T>
+        Result operator()([[gnu::unused]] T& t) {
+            return Result::SKIP;
+        }
+
+        BuildContext& ctx;
+        TypeBuilder& tb;
+    };
 
     void initialize() {
         std::shared_ptr<const Dwarf::Debug> dbg = Dwarf::Debug::self();
@@ -234,8 +299,11 @@ namespace Insight {
         BuildContext ctx(*dbg);
         ctx.container_stack.push(AnyContainer(ROOT_NAMESPACE));
 
+        TypeBuilder tb(ctx);
+        DieVisitor visitor(ctx, tb);
+
         for (const Dwarf::CompilationUnit &cu : *dbg) {
-            cu.get_die()->traverse_headless(Insight::build_metadata, &ctx);
+            cu.visit_headless(visitor);
 
             process_annotations(ctx);
         }

@@ -5,7 +5,25 @@
 
 namespace Insight {
 
-    std::shared_ptr<TypeInfo> build_struct_type(Dwarf::Die &die, BuildContext& ctx, bool register_parent);
+    struct StructBuilder : public Dwarf::DefaultDieVisitor {
+
+        Result operator()(Dwarf::TaggedDie<DW_TAG_member> &die);
+        Result operator()(Dwarf::TaggedDie<DW_TAG_subprogram> &die);
+        Result operator()(Dwarf::TaggedDie<DW_TAG_inheritance> &die);
+
+        template <typename T>
+        Result operator()([[gnu::unused]] T& t) {
+            return Result::SKIP;
+        }
+
+        StructBuilder(std::shared_ptr<StructInfoImpl> info, TypeBuilder &tb);
+
+    private:
+        std::shared_ptr<StructInfoImpl> info;
+        TypeBuilder& tb;
+    };
+
+    std::shared_ptr<TypeInfo> build_struct_type(Dwarf::Die &die, TypeBuilder& tb, bool register_parent);
 
 }
 
