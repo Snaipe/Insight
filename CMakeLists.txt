@@ -12,6 +12,8 @@ set(SOURCE_FILES
     src/cbridge/bridge.cc
     src/util/mangle.hh
     src/util/mangle.cc
+    src/core/core.cc
+    src/core/core.hh
     src/core/dwarf/dwarf.cc
     src/core/dwarf/dwarf.hh
     src/core/dwarf/struct.cc

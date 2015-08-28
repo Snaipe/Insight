@@ -31,6 +31,7 @@
 # include <libdwarf++/cu.hh>
 # include "insight/insight"
 # include "data/internal.hh"
+# include "core/core.hh"
 
 #define CONTAINER_VISITOR(type, Name, operation) \
     struct Name : public boost::static_visitor<void> { \
@@ -89,13 +90,6 @@ namespace Insight {
 
     size_t get_offset(Dwarf::Die &die);
     std::shared_ptr<Container> get_parent(BuildContext& ctx);
-
-    extern std::shared_ptr<NamespaceInfoImpl> ROOT_NAMESPACE;
-    extern std::shared_ptr<TypeInfo> VOID_TYPE;
-    extern std::unordered_map<std::string, std::shared_ptr<NamespaceInfo>> namespaces;
-
-    extern std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
-    extern std::unordered_map<size_t, std::shared_ptr<TypeInfo>> inferred_type_registry;
 
     inline void add_type_to_parent(BuildContext& ctx, std::shared_ptr<TypeInfo> ptr) {
         boost::apply_visitor(add_type(ptr), ctx.container_stack.top());

@@ -9,11 +9,10 @@
 
 namespace Insight {
 
-    extern std::unordered_map<std::string, PrimitiveKind> PRIMITIVE_KINDS_FROM_NAME;
+    extern std::shared_ptr<NamespaceInfoImpl> ROOT_NAMESPACE;
     extern std::shared_ptr<TypeInfo> VOID_TYPE;
-
-    extern std::shared_ptr<NamespaceInfoImpl> root_ns;
     extern std::unordered_map<std::string, std::shared_ptr<NamespaceInfo>> namespaces;
+
     extern std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
     extern std::unordered_map<size_t, std::shared_ptr<TypeInfo>> inferred_type_registry;
 
