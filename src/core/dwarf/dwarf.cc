@@ -42,6 +42,7 @@ namespace Insight {
             : dbg(d)
             , types()
             , methods()
+            , method_addresses()
             , anonymous_count(0)
             , container_stack()
             , annotations()
@@ -242,6 +243,12 @@ namespace Insight {
 
                     AddMethod visitor(die);
                     it->second.apply_visitor(visitor);
+                } else {
+                    std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);
+                    if (attraddr) {
+                        Dwarf::Addr addr = attraddr->as<Dwarf::Addr>();
+                        ctx.method_addresses[off] = reinterpret_cast<void*>(addr);
+                    }
                 }
             }
             return Result::SKIP;

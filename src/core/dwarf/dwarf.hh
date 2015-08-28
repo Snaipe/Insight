@@ -49,6 +49,7 @@ namespace Insight {
 
     using TypeOffsetMap = OffsetMap<std::shared_ptr<TypeInfo>>;
     using MethodOffsetMap = OffsetMap<AnyMethod>;
+    using AddressOffsetMap = OffsetMap<void*>;
 
     struct BuildContext {
         BuildContext(const Dwarf::Debug& d);
@@ -56,6 +57,7 @@ namespace Insight {
         const Dwarf::Debug& dbg;
         TypeOffsetMap types;
         MethodOffsetMap methods;
+        AddressOffsetMap method_addresses;
         int anonymous_count;
         std::stack<AnyContainer> container_stack;
         std::map<size_t, std::shared_ptr<AnnotationInfoImpl>> annotations;

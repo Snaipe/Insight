@@ -83,6 +83,11 @@ namespace Insight {
 
         info->add_method(method);
 
+        auto it = tb.ctx.method_addresses.find(die.get_offset());
+        if (it != tb.ctx.method_addresses.end()) {
+            method->address_ = it->second;
+        }
+
         mark_element_line(tb.ctx, die, method);
 
         return Result::SKIP;
