@@ -36,6 +36,8 @@ set(INTERFACE_FILES
     include/insight/compare
     include/insight/compare.hxx
     include/insight/stream.hxx
+    include/insight/annotate
+    include/insight/annotate.h
 )
 
 add_subdirectory(samples)
