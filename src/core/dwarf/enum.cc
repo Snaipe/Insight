@@ -78,9 +78,8 @@ namespace Insight {
         return Result::SKIP;
     }
 
-    EnumBuilder::EnumBuilder(std::shared_ptr<EnumInfoImpl> info, TypeBuilder &tb)
+    EnumBuilder::EnumBuilder(std::shared_ptr<EnumInfoImpl> info)
         : info(info)
-        , tb(tb)
     {}
 
     std::shared_ptr<TypeInfo> build_enum_type(Dwarf::Die &die, TypeBuilder& tb, bool register_parent) {
@@ -96,7 +95,7 @@ namespace Insight {
         if (register_parent)
             info->set_parent(parent);
 
-        EnumBuilder builder(info, tb);
+        EnumBuilder builder(info);
 
         die.visit_headless(builder);
 

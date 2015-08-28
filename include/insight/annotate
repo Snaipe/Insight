@@ -27,13 +27,10 @@
 
 # ifdef __cplusplus
 
-#  define insight_annotate_decl(Line, Name, ...) \
-    static constexpr Name insight_annotation_ ## Line
-
 #  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
 #  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
 #  define insight_annotate__(Line, Name, ...)                                    \
-    static constexpr Name insight_annotation_ ## Line {                          \
+    [[gnu::unused]] static constexpr Name insight_annotation_ ## Line {          \
         __VA_ARGS__                                                              \
     };
 
@@ -41,7 +38,7 @@
 #  define insight_annotate(...) insight_annotate_(__LINE__, __VA_ARGS__)
 #  define insight_annotate_(Line, ...) insight_annotate__(Line, __VA_ARGS__)
 #  define insight_annotate__(Line, Name, ...)                                           \
-    static const struct Name insight_annotation_ ## Line = {                            \
+    __attribute__((unused)) static const struct Name insight_annotation_ ## Line = {    \
         __VA_ARGS__                                                                     \
     };
 # endif

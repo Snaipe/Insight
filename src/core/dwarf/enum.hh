@@ -33,11 +33,10 @@ namespace Insight {
             return Result::SKIP;
         }
 
-        EnumBuilder(std::shared_ptr<EnumInfoImpl> info, TypeBuilder &tb);
+        EnumBuilder(std::shared_ptr<EnumInfoImpl> info);
 
     private:
         std::shared_ptr<EnumInfoImpl> info;
-        TypeBuilder& tb;
     };
 
     std::shared_ptr<TypeInfo> build_enum_type(Dwarf::Die &die, TypeBuilder& tb, bool register_parent);

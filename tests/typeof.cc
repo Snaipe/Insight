@@ -131,8 +131,8 @@ TEST(Typeof, Expression) {
 
     EXPECT_EQ(type_of(true), type_of(bool));
 #if __cplusplus >= 201103L
-    EXPECT_EQ(type_of(nullptr), type_of(nullptr_t));
-    EXPECT_EQ(sizeof(void*), type_of(nullptr_t).size_of());
+    EXPECT_EQ(type_of(nullptr), type_of(std::nullptr_t));
+    EXPECT_EQ(sizeof(void*), type_of(std::nullptr_t).size_of());
 #endif
 
     EXPECT_EQ(type_of(TypeofTest(42)), type_of(TypeofTest));

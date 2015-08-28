@@ -22,13 +22,13 @@
 
 # ifdef __cplusplus
 namespace Insight {
-    struct FieldInfo;
-    struct MethodInfo;
-    struct StructMemberInfo;
-    struct StructInfo;
-    struct PrimitiveTypeInfo;
-    struct TypeInfo;
-    struct Container;
+    class FieldInfo;
+    class MethodInfo;
+    class StructMemberInfo;
+    class StructInfo;
+    class PrimitiveTypeInfo;
+    class TypeInfo;
+    class Container;
 }
 
 typedef const Insight::FieldInfo *insight_field_info;
