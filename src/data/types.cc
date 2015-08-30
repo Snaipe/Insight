@@ -229,4 +229,12 @@ namespace Insight {
     EnumInfoImpl::EnumInfoImpl(std::string name, size_t size)
         : TypeBase(name, size)
     {}
+
+    ParameterInfoImpl::ParameterInfoImpl(std::string name, std::weak_ptr<TypeInfo> type)
+        : TypedBase(name, type)
+    {}
+
+    size_t ParameterInfoImpl::index() const {
+        return index_;
+    }
 }

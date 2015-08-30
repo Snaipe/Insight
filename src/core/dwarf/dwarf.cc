@@ -22,6 +22,7 @@
 #include "inference.hh"
 #include "annotation.hh"
 #include "util/mangle.hh"
+#include "subprogram.hh"
 
 namespace Insight {
 
@@ -188,12 +189,13 @@ namespace Insight {
                             method->address_ = reinterpret_cast<void*>(addr);
                         }
 
-                        AddMethod(Dwarf::Die& d) : die(d) {}
+                        AddMethod(Dwarf::Die& d, TypeBuilder& tb) : die(d), tb(tb) {}
 
                         Dwarf::Die& die;
+                        TypeBuilder& tb;
                     };
 
-                    AddMethod visitor(die);
+                    AddMethod visitor(die, tb);
                     it->second.apply_visitor(visitor);
                 } else {
                     std::unique_ptr<const Dwarf::Attribute> attraddr = die.get_attribute(DW_AT_low_pc);

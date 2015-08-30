@@ -28,6 +28,8 @@ set(SOURCE_FILES
     src/core/dwarf/annotation.hh
     src/core/dwarf/inference.cc
     src/core/dwarf/inference.hh
+    src/core/dwarf/subprogram.cc
+    src/core/dwarf/subprogram.hh
 )
 set(INTERFACE_FILES
     include/insight/types.h

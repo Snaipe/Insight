@@ -244,13 +244,13 @@ namespace Insight {
             return *return_type_.lock();
         }
 
-        virtual const Range<TypeInfo> parameter_types() const override {
-            return Range<TypeInfo>(parameters_);
+        virtual const Range<ParameterInfo> parameters() const override {
+            return Range<ParameterInfo>(parameters_);
         }
 
         void* address_;
         std::weak_ptr<TypeInfo> return_type_;
-        RangeCollection<TypeInfo> parameters_;
+        RangeCollection<ParameterInfo> parameters_;
     };
 
     class MethodInfoImpl : public CallableBase<MethodInfo> {
@@ -370,6 +370,14 @@ namespace Insight {
     class EnumInfoImpl : public TypeBase<EnumConstantInfoContainerBase<EnumInfo>> {
     public:
         EnumInfoImpl(std::string name, size_t size);
+    };
+
+    class ParameterInfoImpl : public TypedBase<ParameterInfo> {
+    public:
+        ParameterInfoImpl(std::string name, std::weak_ptr<TypeInfo> type);
+        virtual size_t index() const override;
+
+        size_t index_;
     };
 }
 

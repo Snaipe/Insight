@@ -199,6 +199,11 @@ namespace Insight {
         }
     };
 
+    class ParameterInfo : virtual public TypedInfo, virtual public Named {
+    public:
+        virtual size_t index() const = 0;
+    };
+
     class NoSuchFieldException : public std::exception {
 
     };
@@ -206,16 +211,16 @@ namespace Insight {
     class Callable {
     public:
         virtual TypeInfo& return_type() const = 0;
-        virtual const Range<TypeInfo> parameter_types() const = 0;
+        virtual const Range<ParameterInfo> parameters() const = 0;
         virtual void* address() const = 0;
     };
 
 #ifndef NDEBUG
-    inline void insight_assert_valid_types(Range<TypeInfo> types, std::initializer_list<TypeInfo*> list) {
+    inline void insight_assert_valid_types(Range<ParameterInfo> types, std::initializer_list<TypeInfo*> list) {
         auto expected = types.begin();
         auto actual = list.begin();
         for (; expected != types.end() && actual != list.end(); ++expected, ++actual) {
-            assert((*expected).is_compatible(**actual));
+            assert((*expected).type().is_compatible(**actual));
         }
     }
 #endif
@@ -229,7 +234,7 @@ namespace Insight {
         R call(T& instance, Args... args) const {
             assert(type_of(T).is_compatible(declaring_type()));
 #ifndef NDEBUG
-            insight_assert_valid_types(parameter_types(), { (&type_of(Args))... });
+            insight_assert_valid_types(parameters(), { (&type_of(Args))... });
 #endif
 
             using FuncType = R (*)(T*, Args...);
@@ -253,7 +258,7 @@ namespace Insight {
         R call(T& instance, Args... args) const {
             assert(type_of(T).is_compatible(declaring_type()));
 #ifndef NDEBUG
-            insight_assert_valid_types(parameter_types(), { (&type_of(Args))... });
+            insight_assert_valid_types(parameters(), { (&type_of(Args))... });
 #endif
 
             using FuncType = R (*)(T*, Args...);
@@ -270,7 +275,7 @@ namespace Insight {
         template<typename R, typename ...Args>
         R call(Args... args) const {
 #ifndef NDEBUG
-            insight_assert_valid_types(parameter_types(), { (type_of(Args))... });
+            insight_assert_valid_types(parameters(), { (type_of(Args))... });
 #endif
 
             using FuncType = R (*)(Args...);
