@@ -114,7 +114,19 @@ namespace Insight {
             if (*this == type)
                 return true;
 
-            if (dynamic_cast<const PrimitiveTypeInfo*>(&type)) {
+            if (const PrimitiveTypeInfo* o = dynamic_cast<const PrimitiveTypeInfo*>(&type)) {
+                PrimitiveKind k1 = kind();
+                PrimitiveKind k2 = o->kind();
+                int eqmask = VOID | BOOL | CHAR | INT | FLOAT | DOUBLE | UNSIGNED | COMPLEX;
+
+                // unknown types are not compatible.
+                if (!k1 || !k2)
+                    return false;
+
+                // only two integers of same sign are eligible for implicit conversion
+                if ((k1 & eqmask) != (k2 & eqmask))
+                    return false;
+
                 return size_of() <= type.size_of();
             }
             return false;
