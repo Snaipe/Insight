@@ -26,6 +26,7 @@
 # include <map>
 # include <stack>
 # include <boost/variant.hpp>
+# include <boost/noncopyable.hpp>
 # include <libdwarf++/dwarf.hh>
 # include <libdwarf++/die.hh>
 # include <libdwarf++/cu.hh>
@@ -71,7 +72,7 @@ namespace Insight {
     using MethodOffsetMap = OffsetMap<AnyMethod>;
     using AddressOffsetMap = OffsetMap<void*>;
 
-    struct BuildContext {
+    struct BuildContext : public boost::noncopyable {
         BuildContext(const Dwarf::Debug& d);
 
         const Dwarf::Debug& dbg;

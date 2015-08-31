@@ -90,8 +90,8 @@ namespace Insight {
     class NameBase : public T {
     public:
         NameBase() : T(), fullname_(""), name_("") {}
-        NameBase(const std::string& name) : fullname_(""), name_(name) {}
-        NameBase(std::string&& name) : fullname_(""), name_(name) {}
+        NameBase(const std::string& name) : fullname_(name), name_(name) {}
+        NameBase(std::string&& name) : fullname_(name), name_(name) {}
         NameBase(const std::string& parent, const std::string& name) : fullname_(parent + "::" + name), name_(name) {}
         virtual const std::string& name() const override {
             return name_;

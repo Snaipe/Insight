@@ -2,6 +2,7 @@
 # define INSIGHT_CORE_CC_H
 
 # include <unordered_map>
+# include <vector>
 # include <memory>
 # include <string>
 # include "insight/insight"
@@ -15,6 +16,8 @@ namespace Insight {
 
     extern std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
     extern std::unordered_map<size_t, std::shared_ptr<TypeInfo>> inferred_type_registry;
+
+    extern std::vector<std::shared_ptr<Named>> all_objects;
 
 }
 

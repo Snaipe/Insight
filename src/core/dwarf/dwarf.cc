@@ -85,15 +85,7 @@ namespace Insight {
 
         std::shared_ptr<TypeInfo> handle_type(Dwarf::Die& die) {
             Dwarf::AnyDie anydie(die);
-
-            std::shared_ptr<TypeInfo> type = tb.build_type(anydie, true);
-            if (type) {
-                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
-
-                type_registry[type->fullname()] = type;
-                type_registry[unprefixed_name] = type;
-            }
-            return type;
+            return tb.build_type(anydie, true);
         }
 
         Result operator()(Dwarf::TaggedDie<DW_TAG_unspecified_type>& die) {
@@ -117,29 +109,17 @@ namespace Insight {
         }
 
         Result operator()(Dwarf::TaggedDie<DW_TAG_structure_type>& die) {
-            std::shared_ptr<TypeInfo> type = handle_type(die);
-            if (type) {
-                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
-                type_registry["struct " + unprefixed_name] = type;
-            }
+            handle_type(die);
             return Result::SKIP;
         }
 
         Result operator()(Dwarf::TaggedDie<DW_TAG_union_type>& die) {
-            std::shared_ptr<TypeInfo> type = handle_type(die);
-            if (type) {
-                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
-                type_registry["union " + unprefixed_name] = type;
-            }
+            handle_type(die);
             return Result::SKIP;
         }
 
         Result operator()(Dwarf::TaggedDie<DW_TAG_enumeration_type>& die) {
-            std::shared_ptr<TypeInfo> type = handle_type(die);
-            if (type) {
-                std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
-                type_registry["enum " + unprefixed_name] = type;
-            }
+            handle_type(die);
             return Result::SKIP;
         }
 

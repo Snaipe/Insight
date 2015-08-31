@@ -173,17 +173,37 @@ namespace Insight {
         std::string name = die.get_name() ?: "";
 
         const auto it = ctx.types.find(die.get_offset());
-        if (it != ctx.types.end()) {
+        if (it != ctx.types.end() && register_parent) {
             type = it->second;
-            if (register_parent) {
-                std::shared_ptr<MutableChild> child = std::dynamic_pointer_cast<MutableChild>(type);
-                child->set_parent(parent);
-            }
+
+            std::shared_ptr<MutableChild> child = std::dynamic_pointer_cast<MutableChild>(type);
+            child->set_parent(parent);
         } else {
             Visitor visitor(*this, register_parent, ctx);
             type = anydie.apply_visitor(visitor);
-            if (type && register_parent)
-                add_type_to_parent(ctx, type);
+            all_objects.push_back(type);
+        }
+        if (type && register_parent) {
+            add_type_to_parent(ctx, type);
+
+            if (name.empty())
+                return type;
+
+            if (type_registry.count(type->fullname()) != 0)
+                return type;
+
+            std::string unprefixed_name = type->fullname().substr(2, type->fullname().size() - 2);
+
+            type_registry[type->fullname()] = type;
+            type_registry[unprefixed_name] = type;
+
+            // Special cases for C compatibility
+            switch (die.get_tag().get_id()) {
+                case DW_TAG_structure_type:     type_registry["struct " + unprefixed_name] = type; break;
+                case DW_TAG_enumeration_type:   type_registry["enum "   + unprefixed_name] = type; break;
+                case DW_TAG_union_type:         type_registry["union "  + unprefixed_name] = type; break;
+                default: break;
+            }
         }
         return type;
     }

@@ -9,6 +9,7 @@ namespace Insight {
 
     std::unordered_map<std::string, std::shared_ptr<TypeInfo>> type_registry;
     std::unordered_map<size_t, std::shared_ptr<TypeInfo>> inferred_type_registry;
+    std::vector<std::shared_ptr<Named>> all_objects;
 
     TypeInfo& type_of_(void *dummy_addr) {
         return *inferred_type_registry.at(reinterpret_cast<size_t>(dummy_addr));

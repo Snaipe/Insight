@@ -27,7 +27,7 @@ namespace Insight {
     using Result = Dwarf::Die::TraversalResult;
     using Type = typename std::shared_ptr<TypeInfo>;
 
-    struct TypeBuilder  {
+    struct TypeBuilder : public boost::noncopyable {
 
         struct Visitor : public boost::static_visitor<std::shared_ptr<TypeInfo>> {
 
