@@ -24,7 +24,7 @@ using namespace Insight;
 Result ParameterListBuilder::operator()(Dwarf::TaggedDie<DW_TAG_formal_parameter>& die) {
     // don't build info for artificial parameters such as "this"
     std::unique_ptr<const Dwarf::Attribute> artattr = die.get_attribute(DW_AT_artificial);
-    if (!artattr || artattr->as<dwarf::Dwarf_Bool>())
+    if (artattr)
         return Result::SKIP;
 
     std::shared_ptr<TypeInfo> type = tb.get_type_attr(die);
