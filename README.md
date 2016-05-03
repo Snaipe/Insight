@@ -1,6 +1,6 @@
 # <img src="doc/insight-title.png" height="96" alt="Insight Logo" />
 
-A reflection framework for C/C++
+A reflection library for C/C++
 
 **WARNING: This library is still experimental. Beware of bugs and API changes!**
 
